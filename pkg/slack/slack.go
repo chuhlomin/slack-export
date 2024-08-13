@@ -133,9 +133,12 @@ func (c *Client) GetToken(code string) error {
 func (c *Client) GetUsers() ([]slack.User, error) {
 	users := make([]slack.User, 0, len(c.seenUsers))
 	for user := range c.seenUsers {
+		if user == "" {
+			continue
+		}
 		u, err := c.api.GetUserInfo(user)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%q: %v", user, err)
 		}
 
 		users = append(users, *u)
