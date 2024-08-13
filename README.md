@@ -8,8 +8,36 @@ I wanted to extract Slack messages and their replies for further analysis in Cha
 
 This application was developed with Go 1.22.4.
 
-1. Go to https://api.slack.com/apps and create a new Slack app.
-1. Add the scope `channels:history` to the app's Bot Token Scopes.
+1. Go to https://api.slack.com/apps and create a new Slack app with app manifest:
+
+    ```json
+    {
+        "display_information": {
+            "name": "Exporter"
+        },
+        "oauth_config": {
+            "redirect_urls": [
+                "https://exporter.local"
+            ],
+            "scopes": {
+                "user": [
+                    "channels:history",
+                    "groups:history",
+                    "im:history",
+                    "mpim:history",
+                    "users:read",
+                    "channels:read"
+                ]
+            }
+        },
+        "settings": {
+            "org_deploy_enabled": false,
+            "socket_mode_enabled": false,
+            "token_rotation_enabled": false
+        }
+    }
+    ```
+
 1. Install the app in the Slack Workspace.
 1. Add the app to the Slack channel you want to export data from: `/invite @,YOUR_APP_NAME>`.
 1. Copy the Bot User OAuth Token of the Slack app from "OAuth & Permissions" in your Slack app settings.
