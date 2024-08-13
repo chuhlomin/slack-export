@@ -1,0 +1,18 @@
+<style>
+.timestamp {
+    color: #888;
+    font-size: 0.8em;
+    margin-left: 1em;
+}
+</style>
+
+<h1>Messages</h1>
+
+<ul>
+  {{ range .Messages }}
+    <li>
+        <strong>{{ .Message.User }}</strong>: {{ .Message.Text }}
+        
+    </li>
+  {{ end }}
+</ul>

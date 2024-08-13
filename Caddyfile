@@ -1,0 +1,9 @@
+{
+    local_certs
+    auto_https disable_redirects
+}
+
+exporter.local {
+    tls internal
+    reverse_proxy http://localhost:8079
+}
