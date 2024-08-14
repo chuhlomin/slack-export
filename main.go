@@ -6,11 +6,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/chuhlomin/slack-export/pkg/structs"
 	"github.com/jessevdk/go-flags"
-
-	"github.com/chuhlomin/slack-export/pkg/rand"
-	"github.com/chuhlomin/slack-export/pkg/server"
-	"github.com/chuhlomin/slack-export/pkg/slack"
 )
 
 type config struct {
@@ -37,7 +34,7 @@ func run() error {
 		return fmt.Errorf("could not parse flags: %v", err)
 	}
 
-	c := slack.NewClient(cfg.AppClientID, cfg.AppClientSecret)
+	c := NewSlackClient(cfg.AppClientID, cfg.AppClientSecret)
 
 	if cfg.APIToken == "" {
 		err := getToken(c)
@@ -48,13 +45,29 @@ func run() error {
 		c.SetToken(cfg.APIToken)
 	}
 
+	channelInfo, err := c.GetChannelInfo(cfg.Channel)
+	if err != nil {
+		return fmt.Errorf("could not get channel info: %v", err)
+	}
+
 	msgs, err := c.GetMessages(cfg.Channel)
 	if err != nil {
 		return fmt.Errorf("could not get messages: %v", err)
 	}
 
-	// Save messages to a file
-	content, err := json.Marshal(msgs)
+	users, err := c.GetUsers()
+	if err != nil {
+		return fmt.Errorf("could not get users: %v", err)
+	}
+
+	data := structs.Data{
+		Channel:  *channelInfo,
+		Messages: msgs,
+		Users:    users,
+	}
+
+	// Save to a file
+	content, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("could not marshal messages: %v", err)
 	}
@@ -64,33 +77,28 @@ func run() error {
 		return fmt.Errorf("could not write messages to file: %v", err)
 	}
 
-	// Save users info
-	users, err := c.GetUsers()
-	if err != nil {
-		return fmt.Errorf("could not get users: %v", err)
-	}
-
-	usersContent, err := json.Marshal(users)
-	if err != nil {
-		return fmt.Errorf("could not marshal users: %v", err)
-	}
-
-	err = os.WriteFile(cfg.Channel+"_users.json", usersContent, 0644)
-	if err != nil {
-		return fmt.Errorf("could not write users to file: %v", err)
-	}
-
 	return nil
 }
 
-func getToken(c *slack.Client) error {
-	state := rand.RandStringBytesMaskImprSrcSB(16)
+func getToken(c *SlackClient) error {
+	state := RandStringBytesMaskImprSrcSB(16)
 	code := make(chan string)
 
-	s := server.NewServer(cfg.Address, cfg.Port, state, code)
+	s := NewServer(cfg.Address, cfg.Port, state, code)
 
-	// log.Println("Starting server on " + cfg.Address + ":" + cfg.Port)
-	go s.Start()
+	go func() {
+		err := s.Start()
+		if err != nil {
+			log.Printf("could not start server: %v", err)
+		}
+	}()
+
+	defer func() {
+		err := s.Stop()
+		if err != nil {
+			log.Printf("could not stop server: %v", err)
+		}
+	}()
 
 	log.Printf("App authorization URL: %s", c.GetAuthorizeURL(state))
 

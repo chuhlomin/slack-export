@@ -1,14 +1,16 @@
 // HTTP server implementation for OAuth callback
-package server
+package main
 
 import "net/http"
 
+// Server is an HTTP server that listens for OAuth callbacks.
 type Server struct {
 	svc   *http.Server
 	state string
 	code  chan string
 }
 
+// NewServer creates a new Server.
 func NewServer(address, port, state string, code chan string) *Server {
 	return &Server{
 		svc: &http.Server{
@@ -19,15 +21,18 @@ func NewServer(address, port, state string, code chan string) *Server {
 	}
 }
 
+// Start starts the server.
 func (s *Server) Start() error {
 	s.svc.Handler = http.HandlerFunc(s.Handler)
 	return s.svc.ListenAndServe()
 }
 
+// Stop stops the server.
 func (s *Server) Stop() error {
 	return s.svc.Close()
 }
 
+// Handler handles OAuth callback requests.
 func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	if code == "" {

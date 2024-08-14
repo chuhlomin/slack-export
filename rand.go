@@ -1,4 +1,4 @@
-package rand
+package main
 
 import (
 	"math/rand"
@@ -15,6 +15,7 @@ const (
 
 var src = rand.NewSource(time.Now().UnixNano())
 
+// RandStringBytesMaskImprSrcSB generates a random string of n characters
 func RandStringBytesMaskImprSrcSB(n int) string {
 	sb := strings.Builder{}
 	sb.Grow(n)

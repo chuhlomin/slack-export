@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ .Channel.Name }}</title>
+<style>
+body {
+  font-family: sans-serif;
+  padding: 1em;
+  font-size: 10pt;
+  line-height: 1.5;
+  max-width: 65ch;
+}
+
+pre {
+  margin: 0;
+  color: #1d1c1d;
+  background: #f6f6f6;
+  border: 1px solid #dadada;
+  border-radius: 3px;
+  padding: 0.5em;
+  font-family: monospace;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+}
+
+code {
+  color: #c01343;
+  background-color: #f6f6f6;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.9em;
+  padding: 0 0.1em;
+  border: 1px solid #dadada;
+}
+
+blockquote {
+  margin: 0;
+  border-left: 3px solid #dddddd;
+  padding-left: 1em;
+}
+
+.messages {
+  list-style: none;
+  padding: 0;
+}
+
+.message-container {
+  display: grid;
+  grid-template-columns: 2em 1fr;
+  column-gap: 0.33em;
+  justify-content: left;
+}
+
+.message-container + .message-container {
+  margin-top: 1em;
+}
+
+.same {
+  margin-top: -0.5em;
+}
+
+.message-header {
+  grid-column: 2;
+  grid-row: 1;
+  margin-top: -2px;
+}
+
+.message {
+  grid-column: 2;
+  grid-row: 2;
+  white-space: pre-wrap;
+}
+
+.avatar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 2em;
+  height: 2em;
+  border-radius: 5px;
+  margin-right: 0.33em;
+}
+
+.timestamp {
+  color: #888;
+  font-size: 0.8em;
+  margin-left: 1em;
+}
+
+.message > ul,
+.message > ol {
+  margin: 0;
+  padding-left: 1em;
+}
+
+.message > ul {
+  list-style-type: disc;
+}
+
+.message > a {
+  line-break: anywhere;
+}
+
+.replies {
+  grid-column: 2;
+  grid-row: 3;
+  padding: 0;
+  margin-top: 0.66em;
+}
+
+.joined {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.user {
+  color: #1264a3;
+  background: #e8f5fa;
+}
+
+.user::before {
+  content: '@';
+}
+</style>
+</head>
+<body>
+<h1>{{ .Channel.Name }}</h1>
+
+<ul class="messages">
+    {{ $checkPrevMessage := false }}
+    {{ $prevMessage := index .Messages 0 }}
+    {{ range .Messages }}
+    {{ $user := lookupUser .User $.Users }}
+    <li class="message-container">
+        {{ if eq .SubType "channel_join" }}
+        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+        <span class="joined">
+          <strong class="username">{{ username $user }}</strong> has joined the channel
+          <span class="timestamp">{{ formatTime .Timestamp }}</span>
+          {{ $checkPrevMessage = false }}
+        </span>
+        {{ else }}
+        {{ $newContext := or (not $checkPrevMessage) (not (sameMessage $prevMessage .)) }}
+        {{ if $newContext }}
+            <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+            <span class="message-header">
+              <strong class="username">{{ username $user }}</strong>
+              <span class="timestamp">{{ formatTime .Timestamp }}</span><br>
+            </span>
+            {{ $checkPrevMessage = true }}
+        {{ end }}
+        <span class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}</span>
+        {{ end }}
+
+        {{ with .Replies }}
+        {{ $checkPrevMessage = false }}
+        <ul class="replies">
+            {{ range . }}
+            {{ $user := lookupUser .User $.Users }}
+            {{ $newContext := or (not $checkPrevMessage) (not (sameSlackMessage $prevMessage .)) }}
+            <li class="message-container">
+                {{ if $newContext }}
+                    <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+                    <span class="message-header">
+                      <strong class="username">{{ username $user }}</strong>
+                      <span class="timestamp">{{ formatTime .Timestamp }}</span><br>
+                    </span>
+                    {{ $checkPrevMessage = true }}
+                {{ else }}
+                {{ end }}
+                <span class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}</span>
+            </li>
+            {{ $prevMessage = . }}
+            {{ end }}
+        </ul>
+        {{ $checkPrevMessage = false }}
+        {{ end }}
+    </li>
+    {{ $prevMessage = . }}
+    {{ end }}
+</ul>
+</body>
+</html>

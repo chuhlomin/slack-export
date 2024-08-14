@@ -1,52 +1,111 @@
-# Slack Channel Export
+# Slack Export
 
-## Background
-
-I wanted to extract Slack messages and their replies for further analysis in ChatGPT. This tool writes that data into a JSON file.
-
-## Try it yourself
+Export messages from a Slack channel to a JSON file.
 
 This application was developed with Go 1.22.4.
 
-1. Go to https://api.slack.com/apps and create a new Slack app with app manifest:
+### 1. Create Slack App
 
-    ```json
-    {
-        "display_information": {
-            "name": "Exporter"
-        },
-        "oauth_config": {
-            "redirect_urls": [
-                "https://exporter.local"
-            ],
-            "scopes": {
-                "user": [
-                    "channels:history",
-                    "groups:history",
-                    "im:history",
-                    "mpim:history",
-                    "users:read",
-                    "channels:read"
-                ]
-            }
-        },
-        "settings": {
-            "org_deploy_enabled": false,
-            "socket_mode_enabled": false,
-            "token_rotation_enabled": false
+Go to https://api.slack.com/apps and create a new Slack app with app manifest:
+
+```json
+{
+    "display_information": {
+        "name": "Exporter"
+    },
+    "oauth_config": {
+        "redirect_urls": [
+            "https://exporter.local"
+        ],
+        "scopes": {
+            "user": [
+                "channels:history",
+                "groups:history",
+                "im:history",
+                "mpim:history",
+                "users:read",
+                "channels:read",
+                "files:read"
+            ]
         }
+    },
+    "settings": {
+        "org_deploy_enabled": false,
+        "socket_mode_enabled": false,
+        "token_rotation_enabled": false
     }
-    ```
+}
+```
 
-1. Install the app in the Slack Workspace.
-1. Add the app to the Slack channel you want to export data from: `/invite @,YOUR_APP_NAME>`.
-1. Copy the Bot User OAuth Token of the Slack app from "OAuth & Permissions" in your Slack app settings.
-1. Copy the file `.env-template` to `.env` and add values to the placeholders for `SLACK_CHANNEL_ID` and `SLACK_API_TOKEN`. The Bot User OAuth Token is the value for `SLACK_API_TOKEN`.
-1. Build and run the main executable from the root of this repo with: `go run src/main.go`.
+Install the app in the Slack Workspace.
 
-## Slack APIs
+### 2. Prepare the environment for OAuth flow
 
-The following two Slack API endpoints are being used:
+To perform operations on behalf of the user, the app needs to be authorized by the user (token starts with `xoxp-`). This is done by the OAuth flow. Once token is obtained, it can be passed to the app as `API_TOKEN` environment variable to avoid OAuth flow.
 
-- https://api.slack.com/methods/conversations.history
-- https://api.slack.com/methods/conversations.replies
+App will run a local HTTP server to receive the OAuth callback. To make it work, you need to add `exporter.local` to your `/etc/hosts` file:
+
+```
+127.0.0.1       exporter.local
+::1     exporter.local
+```
+
+Because Slack requires HTTPS for OAuth, you need to run the app with a self-signed certificate. One way to do this to run Caddy from the root of this repo:
+
+```sh
+caddy run
+```
+
+It will forward all requests to the app running on `localhost:8079` (controlled by `ADDRESS` and `PORT` environment variable) and serve the app on `https://exporter.local`.
+
+### 3. Run the app
+
+Copy the file `.env-template` to `.env` and add values to the placeholders for `APP_CLIENT_ID` and `APP_CLIENT_SECRET` with the values from "Basic info" in your Slack app settings.
+
+Find channel, group or DM ID by copying its link and extracting the last part of the URL. For example, the ID for `https://myworkspace.slack.com/archives/D0000000000` is `D0000000000`.
+
+Build and run the main executable from the root of this repo with: 
+
+```shell
+go run . --channel="D0000000000"
+```
+
+App will create a JSON file with the messages named like `D0000000000.json` with structure like:
+
+```json
+{
+    "messages": [
+        {
+            "user": "U0000000000",
+            "ts": "0000000000.000000",
+            "blocks": [...],
+            "reactions": [...],
+            "replies": [
+                {
+                    ...
+                }
+            ]
+        },
+        ...
+    ],
+    "users": [
+        {
+            "id": "U0000000000",
+            "name": "Name",
+            ...
+        }
+    ],
+    "channel": {
+        "name": "...",
+        ...
+    }
+}
+```
+
+### 4. (Optionally) Convert JSON to HTML
+
+To convert JSON to HTML, you can use the `json2html` tool from the `cmd` directory.
+
+```shell
+go run cmd/json2html/main.go --input D0000000000.json --output D0000000000.html
+```
