@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -46,18 +49,26 @@ type TokenResponse struct {
 
 // SlackClient is a client for the Slack API.
 type SlackClient struct {
+	limiter      *rate.Limiter
+	ctx          context.Context
 	clientID     string
 	clientSecret string
+	token        string
 	api          *slack.Client
 	seenUsers    map[string]interface{}
+	files        map[string]string // id -> url_private_download
 }
 
 // NewSlackClient creates a new SlackClient.
 func NewSlackClient(id, secret string) *SlackClient {
 	return &SlackClient{
+		// Tier 3 Rate Limiting: 50 requests per minute
+		limiter:      rate.NewLimiter(rate.Every(time.Minute/50), 1),
+		ctx:          context.Background(),
 		clientID:     id,
 		clientSecret: secret,
 		seenUsers:    make(map[string]interface{}),
+		files:        make(map[string]string),
 	}
 }
 
@@ -79,6 +90,7 @@ func (sc *SlackClient) GetAuthorizeURL(state string) string {
 			"mpim:history",
 			"users:read",
 			"channels:read",
+			"files:read",
 		},
 		",",
 	))
@@ -96,6 +108,7 @@ func (sc *SlackClient) GetAuthorizeURL(state string) string {
 
 // SetToken sets the API token for the SlackClient.
 func (sc *SlackClient) SetToken(token string) {
+	sc.token = token
 	sc.api = slack.New(token)
 }
 
@@ -137,7 +150,8 @@ func (sc *SlackClient) GetToken(code string) error {
 
 	log.Printf("Token received: %s", token.AuthedUser.AccessToken)
 
-	sc.api = slack.New(token.AuthedUser.AccessToken)
+	sc.token = token.AuthedUser.AccessToken
+	sc.api = slack.New(sc.token)
 	return nil
 }
 
@@ -177,13 +191,9 @@ func (sc *SlackClient) GetMessages(channel string) ([]structs.Message, error) {
 
 	var allMessages []slack.Message
 
-	// Tier 3 Rate Limiting: 50 requests per minute
-	var limiter = rate.NewLimiter(rate.Every(time.Minute/50), 1)
-	ctx := context.Background()
-
 	cursor := ""
 	for {
-		err := limiter.Wait(ctx)
+		err := sc.limiter.Wait(sc.ctx)
 		if err != nil {
 			return nil, fmt.Errorf("rate limit error: %v", err)
 		}
@@ -214,7 +224,7 @@ func (sc *SlackClient) GetMessages(channel string) ([]structs.Message, error) {
 		var err error
 
 		if msg.ReplyCount > 0 {
-			replies, err = sc.getReplies(channel, msg.Timestamp, limiter)
+			replies, err = sc.getReplies(channel, msg.Timestamp)
 			if err != nil {
 				fmt.Printf("Could not get replies for message '%s': %v", msg.Timestamp, err)
 			}
@@ -229,7 +239,7 @@ func (sc *SlackClient) GetMessages(channel string) ([]structs.Message, error) {
 }
 
 // getReplies returns a list of all the replies to a message.
-func (sc *SlackClient) getReplies(channel, messageID string, limiter *rate.Limiter) ([]slack.Message, error) {
+func (sc *SlackClient) getReplies(channel, messageID string) ([]slack.Message, error) {
 	if channel == "" {
 		return nil, errors.New("argument 'channel' is required")
 	}
@@ -238,7 +248,7 @@ func (sc *SlackClient) getReplies(channel, messageID string, limiter *rate.Limit
 
 	cursor := ""
 	for {
-		err := limiter.Wait(context.Background())
+		err := sc.limiter.Wait(sc.ctx)
 		if err != nil {
 			return nil, fmt.Errorf("rate limit error: %v", err)
 		}
@@ -281,7 +291,89 @@ func (sc *SlackClient) getReplies(channel, messageID string, limiter *rate.Limit
 func (sc *SlackClient) convertToMsg(message slack.Message) structs.Message {
 	sc.seenUsers[message.User] = nil
 
+	if message.Files != nil {
+		for _, file := range message.Files {
+			if file.URLPrivateDownload == "" {
+				continue
+			}
+			sc.files[file.ID] = file.URLPrivateDownload
+		}
+	}
+
 	return structs.Message{
 		Message: message,
 	}
+}
+
+// DownloadFiles downloads all the files in the channel.
+func (sc *SlackClient) DownloadFiles(channelID string) (map[string]string, error) {
+	result := make(map[string]string)
+
+	// create directory for files
+	err := os.MkdirAll(channelID, 0755)
+	if err != nil {
+		return nil, fmt.Errorf("could not create directory: %v", err)
+	}
+
+	for id, url := range sc.files {
+		filename, err := sc.downloadFile(channelID, id, url)
+		if err != nil {
+			log.Printf("could not download file %q: %v", id, err)
+		}
+
+		result[id] = filename
+	}
+
+	return result, nil
+}
+
+func (sc *SlackClient) downloadFile(path, id, url string) (string, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("could not create request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+sc.token)
+
+	err = sc.limiter.Wait(sc.ctx)
+	if err != nil {
+		return "", fmt.Errorf("rate limit error: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("could not send request: %v", err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("bad status code: %d", resp.StatusCode)
+	}
+
+	// read content-disposition header
+	disposition := resp.Header.Get("Content-Disposition")
+	if disposition == "" {
+		return "", fmt.Errorf("no content-disposition header")
+	}
+
+	// extract filename from content-disposition header
+	filename := strings.TrimPrefix(disposition, "attachment; filename=")
+	filename = strings.Trim(filename, "\"")
+
+	// if filename is empty, use the id
+	if filename == "" {
+		filename = id
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("could not read body: %v", err)
+	}
+
+	err = os.WriteFile(filepath.Join(path, filename), content, 0644)
+	if err != nil {
+		return "", fmt.Errorf("could not write file: %v", err)
+	}
+
+	return filename, nil
 }

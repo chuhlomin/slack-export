@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/chuhlomin/slack-export/pkg/structs"
@@ -55,6 +56,11 @@ func run() error {
 		return fmt.Errorf("could not get messages: %v", err)
 	}
 
+	files, err := c.DownloadFiles(cfg.Channel)
+	if err != nil {
+		return fmt.Errorf("could not download files: %v", err)
+	}
+
 	users, err := c.GetUsers()
 	if err != nil {
 		return fmt.Errorf("could not get users: %v", err)
@@ -64,6 +70,7 @@ func run() error {
 		Channel:  *channelInfo,
 		Messages: msgs,
 		Users:    users,
+		Files:    files,
 	}
 
 	// Save to a file
@@ -88,7 +95,7 @@ func getToken(c *SlackClient) error {
 
 	go func() {
 		err := s.Start()
-		if err != nil {
+		if err != nil && err != http.ErrServerClosed {
 			log.Printf("could not start server: %v", err)
 		}
 	}()
