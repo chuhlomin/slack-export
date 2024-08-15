@@ -31,11 +31,18 @@ var tmpl string
 var (
 	cfg config
 	fm  = template.FuncMap{
-		"lookupUser":       lookupUser,
-		"username":         username,
-		"avatar":           avatar,
-		"sameMessage":      sameMessage,
-		"sameSlackMessage": sameSlackMessage,
+		"lookupUser": lookupUser,
+		"username":   username,
+		"avatar": func(user slack.User) string {
+			return user.Profile.Image512
+		},
+		"sameMessage": func(a, b structs.Message) bool {
+			return a.SameContext(b)
+		},
+		"sameSlackMessage": func(a, b slack.Message) bool {
+			ma := structs.Message{Message: a}
+			return ma.SameContext(structs.Message{Message: b})
+		},
 		"formatTime": func(t string) string {
 			unixPart := t[:strings.Index(t, ".")]
 			sec, err := strconv.ParseInt(unixPart, 10, 64)
@@ -46,6 +53,7 @@ var (
 
 			return time.Unix(sec, 0).Format(time.ANSIC)
 		},
+		"emoji": emojiParse,
 		"format": func(blocks slack.Blocks, users []slack.User) template.HTML {
 			sb := &strings.Builder{}
 			for _, block := range blocks.BlockSet {
@@ -102,10 +110,6 @@ func run() error {
 	return nil
 }
 
-func avatar(user slack.User) string {
-	return user.Profile.Image512
-}
-
 func lookupUser(id string, users []slack.User) slack.User {
 	for _, user := range users {
 		if user.ID == id {
@@ -124,6 +128,10 @@ func username(user slack.User) string {
 		user.Profile.DisplayNameNormalized,
 		user.Name,
 	)
+}
+
+func emojiParse(s string) string {
+	return emoji.Parse(":" + s + ":")
 }
 
 func first(ss ...string) string {
@@ -253,9 +261,7 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 					"</span>",
 			)
 		case slack.RTSEEmoji:
-			sb.WriteString(
-				emoji.Parse(":" + rtEelement.(*slack.RichTextSectionEmojiElement).Name + ":"),
-			)
+			sb.WriteString(emojiParse(rtEelement.(*slack.RichTextSectionEmojiElement).Name))
 		case slack.RTSELink:
 			if rtEelement.(*slack.RichTextSectionLinkElement).Text != "" {
 				sb.WriteString(fmt.Sprintf("<a href=\"%s\">%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).Text))
@@ -270,13 +276,4 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 	}
 
 	return sb.String()
-}
-
-func sameMessage(a, b structs.Message) bool {
-	return a.SameContext(b)
-}
-
-func sameSlackMessage(a, b slack.Message) bool {
-	ma := structs.Message{Message: a}
-	return ma.SameContext(structs.Message{Message: b})
 }

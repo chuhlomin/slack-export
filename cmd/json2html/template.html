@@ -101,9 +101,34 @@ blockquote {
   line-break: anywhere;
 }
 
-.replies {
+.reactions {
   grid-column: 2;
   grid-row: 3;
+  list-style: none;
+  padding: 0;
+  margin-top: 0.33em;
+}
+
+.reactions li {
+  display: inline;
+  margin-right: 0.33em;
+  background: #f2f2f2;
+  border-radius: 100px;
+  padding: 0.1em 0.5em;
+}
+
+.reactions li span {
+  margin-left: 0.33em;
+  font-size: 0.8em;
+  vertical-align: text-top;
+  user-select: none;
+  cursor: default;
+}
+
+
+.replies {
+  grid-column: 2;
+  grid-row: 4;
   padding: 0;
   margin-top: 0.66em;
 }
@@ -151,6 +176,14 @@ blockquote {
             {{ $checkPrevMessage = true }}
         {{ end }}
         <span class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}</span>
+        {{ end }}
+
+        {{ with .Reactions }}
+        <ul class="reactions">
+            {{ range . }}
+            <li title="{{ range .Users }}{{ username (lookupUser . $.Users) }}, {{ end }}">{{ emoji .Name }}<span>{{ .Count }}</span></li>
+            {{ end }}
+        </ul>
         {{ end }}
 
         {{ with .Replies }}
