@@ -4,12 +4,21 @@
 <meta charset="utf-8">
 <title>{{ .Channel.Name }}</title>
 <style>
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
 body {
   font-family: sans-serif;
   padding: 1em;
   font-size: 10pt;
   line-height: 1.5;
-  max-width: 65ch;
 }
 
 pre {
@@ -22,6 +31,7 @@ pre {
   font-family: monospace;
   font-size: 0.9em;
   white-space: pre-wrap;
+  line-break: anywhere;
 }
 
 code {
@@ -38,6 +48,11 @@ blockquote {
   margin: 0;
   border-left: 3px solid #dddddd;
   padding-left: 1em;
+}
+
+video, img {
+  max-width: 100%;
+  max-height: 40em;
 }
 
 .messages {
@@ -69,7 +84,7 @@ blockquote {
 .message {
   grid-column: 2;
   grid-row: 2;
-  white-space: pre-wrap;
+  max-width: 75ch;
 }
 
 .avatar {
@@ -101,6 +116,16 @@ blockquote {
   line-break: anywhere;
 }
 
+.files {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.files img,
+.files video {
+  border: 1px solid #ddd;
+}
+
 .reactions {
   grid-column: 2;
   grid-row: 3;
@@ -125,7 +150,6 @@ blockquote {
   cursor: default;
 }
 
-
 .replies {
   grid-column: 2;
   grid-row: 4;
@@ -133,7 +157,7 @@ blockquote {
   margin-top: 0.66em;
 }
 
-.joined {
+.joined, .left {
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
@@ -142,6 +166,8 @@ blockquote {
 .user {
   color: #1264a3;
   background: #e8f5fa;
+  border-radius: 3px;
+  padding: 0 0.1em;
 }
 
 .user::before {
@@ -165,6 +191,13 @@ blockquote {
           <span class="timestamp">{{ formatTime .Timestamp }}</span>
           {{ $checkPrevMessage = false }}
         </span>
+        {{ else if eq .SubType "channel_leave" }}
+        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+        <span class="left">
+          <strong class="username">{{ username $user }}</strong> has left the channel
+          <span class="timestamp">{{ formatTime .Timestamp }}</span>
+          {{ $checkPrevMessage = false }}
+        </span>
         {{ else }}
         {{ $newContext := or (not $checkPrevMessage) (not (sameMessage $prevMessage .)) }}
         {{ if $newContext }}
@@ -175,7 +208,11 @@ blockquote {
             </span>
             {{ $checkPrevMessage = true }}
         {{ end }}
-        <span class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}</span>
+        <span class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
+          {{ with .Files }}
+          <div class="files">{{ range . }}<div class="file">{{ attachment . $.Files $.Channel }}</div>{{ end }}</div>
+          {{ end }}
+        </span>
         {{ end }}
 
         {{ with .Reactions }}

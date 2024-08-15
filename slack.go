@@ -357,8 +357,9 @@ func (sc *SlackClient) downloadFile(path, id, url string) (string, error) {
 	}
 
 	// extract filename from content-disposition header
-	filename := strings.TrimPrefix(disposition, "attachment; filename=")
-	filename = strings.Trim(filename, "\"")
+	filename := strings.TrimPrefix(disposition, "attachment; filename=\"")
+	// remove everything after ";
+	filename = strings.Split(filename, "\";")[0]
 
 	// if filename is empty, use the id
 	if filename == "" {
@@ -370,7 +371,8 @@ func (sc *SlackClient) downloadFile(path, id, url string) (string, error) {
 		return "", fmt.Errorf("could not read body: %v", err)
 	}
 
-	err = os.WriteFile(filepath.Join(path, filename), content, 0644)
+	// adding id prefix to filename to avoid collisions (like a few files named image.png)
+	err = os.WriteFile(filepath.Join(path, id+"-"+filename), content, 0644)
 	if err != nil {
 		return "", fmt.Errorf("could not write file: %v", err)
 	}

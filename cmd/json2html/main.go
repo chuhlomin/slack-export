@@ -6,7 +6,10 @@ import (
 	"html"
 	"html/template"
 	"log"
+	"net/url"
 	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -66,6 +69,44 @@ var (
 			}
 
 			return template.HTML(sb.String())
+		},
+		"attachment": func(file slack.File, files map[string]string, channel slack.Channel) template.HTML {
+			filename, ok := files[file.ID]
+			if !ok {
+				return template.HTML(fmt.Sprintf("<a href=\"%s\">%s</a>", file.URLPrivateDownload, file.Title))
+			}
+
+			// url-encode filename (account for \u202f symbol)
+			filename = url.PathEscape(filename)
+
+			switch file.Filetype {
+			case "png", "jpg", "gif":
+				return template.HTML(
+					fmt.Sprintf(
+						"<img src=\"%s\" alt=\"%s\" />",
+						filepath.Join(channel.ID, file.ID+"-"+filename),
+						file.Title,
+					),
+				)
+			case "mov", "mp4":
+				return template.HTML(
+					fmt.Sprintf(
+						"<video controls src=\"%s\" alt=\"%s\" />",
+						filepath.Join(channel.ID, file.ID+"-"+filename),
+						file.Title,
+					),
+				)
+
+			default:
+				return template.HTML(
+					fmt.Sprintf(
+						"<a href=\"%s\" download=\"%s\">%s</a>",
+						filepath.Join(channel.ID, file.ID+"-"+filename),
+						file.Name,
+						file.Title,
+					),
+				)
+			}
 		},
 	}
 )
@@ -130,7 +171,33 @@ func username(user slack.User) string {
 	)
 }
 
+var emojiSkinTone = regexp.MustCompile(`:skin-tone-(\d)`)
+
 func emojiParse(s string) string {
+	if emojiSkinTone.MatchString(s) {
+		log.Printf("skin tone: %s", s)
+		matches := emojiSkinTone.FindStringSubmatch(s)
+		tone := matches[1]
+		suffix := ""
+
+		switch tone {
+		case "1":
+			suffix = emoji.Light.String()
+		case "2":
+			suffix = emoji.MediumLight.String()
+		case "3":
+			suffix = emoji.Medium.String()
+		case "4":
+			suffix = emoji.MediumDark.String()
+		case "5":
+			suffix = emoji.Dark.String()
+		}
+
+		// remove skin tone suffix
+		s = strings.Split(s, "::skin-tone-")[0]
+		return emoji.Parse(":"+s+":") + suffix
+	}
+
 	return emoji.Parse(":" + s + ":")
 }
 
