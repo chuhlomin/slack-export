@@ -25,7 +25,8 @@ Go to https://api.slack.com/apps and create a new Slack app with app manifest:
                 "mpim:history",
                 "users:read",
                 "channels:read",
-                "files:read"
+                "files:read",
+                "emoji:read",
             ]
         }
     },
