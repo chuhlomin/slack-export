@@ -4,7 +4,7 @@ Export messages from a Slack channel to a JSON file.
 
 This application was developed with Go 1.22.4.
 
-### 1. Create Slack App
+## 1. Create Slack App
 
 Go to https://api.slack.com/apps and create a new Slack app with app manifest:
 
@@ -39,7 +39,7 @@ Go to https://api.slack.com/apps and create a new Slack app with app manifest:
 
 Install the app in the Slack Workspace.
 
-### 2. Prepare the environment for OAuth flow
+## 2. Prepare the environment for OAuth flow
 
 To perform operations on behalf of the user, the app needs to be authorized by the user (token starts with `xoxp-`). This is done by the OAuth flow. Once token is obtained, it can be passed to the app as `API_TOKEN` environment variable to avoid OAuth flow.
 
@@ -58,7 +58,7 @@ caddy run
 
 It will forward all requests to the app running on `localhost:8079` (controlled by `ADDRESS` and `PORT` environment variable) and serve the app on `https://exporter.local`.
 
-### 3. Run the app
+## 3. Run the app
 
 Copy the file `.env-template` to `.env` and add values to the placeholders for `APP_CLIENT_ID` and `APP_CLIENT_SECRET` with the values from "Basic info" in your Slack app settings.
 
@@ -98,11 +98,15 @@ App will create a JSON file with the messages named like `D0000000000.json` with
     "channel": {
         "name": "...",
         ...
+    },
+    "files": {
+        "F0000000000": "image.png",
+        ...
     }
 }
 ```
 
-### 4. (Optionally) Convert JSON to HTML
+## 4. (Optionally) Convert JSON to HTML
 
 To convert JSON to HTML, you can use the `json2html` tool from the `cmd` directory.
 
