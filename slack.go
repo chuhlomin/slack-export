@@ -91,6 +91,7 @@ func (sc *SlackClient) GetAuthorizeURL(state string) string {
 			"users:read",
 			"channels:read",
 			"files:read",
+			"emoji:read",
 		},
 		",",
 	))
