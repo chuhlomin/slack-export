@@ -113,3 +113,17 @@ To convert JSON to HTML, you can use the `json2html` tool from the `cmd` directo
 ```shell
 go run cmd/json2html/main.go --input D0000000000.json --output D0000000000.html
 ```
+
+By default, only the standard Slack are supported. To add custom emoji, first download them by running the `emoji` tool from the `cmd` directory:
+
+```shell
+go run cmd/emoji/main.go --output emoji
+```
+
+It will create `emoji` directory with all the emoji images and `emoji.json` file with the mapping from emoji name to the file name.
+
+Then re-run the `json2html` tool with the `--emoji` flag:
+
+```shell
+go run cmd/json2html/main.go --input D0000000000.json --output D0000000000.html --emoji emoji
+```
