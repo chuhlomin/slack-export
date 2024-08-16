@@ -286,6 +286,18 @@ func (sc *SlackClient) getReplies(channel, messageID string) ([]slack.Message, e
 	}
 	filteredReplies := filterFn(allReplies, messageID)
 
+	// Add attachments to slice
+	for _, reply := range filteredReplies {
+		if reply.Files != nil {
+			for _, file := range reply.Files {
+				if file.URLPrivateDownload == "" {
+					continue
+				}
+				sc.files[file.ID] = file.URLPrivateDownload
+			}
+		}
+	}
+
 	return filteredReplies, nil
 }
 
