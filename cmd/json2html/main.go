@@ -25,8 +25,9 @@ import (
 )
 
 type config struct {
-	Input  string `long:"input" description:"Input JSON file" required:"true"`
-	Output string `long:"output" description:"Output HTML file" required:"true"`
+	Input    string `long:"input" description:"Input JSON file" required:"true"`
+	EmojiDir string `long:"emoji-dir" description:"Directory with emoji"`
+	Output   string `long:"output" description:"Output HTML file" required:"true"`
 }
 
 //go:embed template.html
@@ -41,6 +42,15 @@ var (
 		},
 		"sameMessage": func(a, b structs.Message) bool {
 			return a.SameContext(b)
+		},
+		"usersList": func(ids []string, users []slack.User) string {
+			var names = make([]string, 0, len(ids))
+
+			for _, id := range ids {
+				names = append(names, username((lookupUser(id, users))))
+			}
+
+			return strings.Join(names, ", ")
 		},
 		"sameSlackMessage": func(a, b slack.Message) bool {
 			ma := structs.Message{Message: a}
@@ -117,9 +127,19 @@ func main() {
 	}
 }
 
+var slackEmoji emojiMap
+
 func run() error {
 	if _, err := flags.Parse(&cfg); err != nil {
 		return fmt.Errorf("could not parse flags: %v", err)
+	}
+
+	if cfg.EmojiDir != "" {
+		var err error
+		slackEmoji, err = loadSlackEmoji(filepath.Join(cfg.EmojiDir, "emoji.json"))
+		if err != nil {
+			return fmt.Errorf("could not load emoji: %v", err)
+		}
 	}
 
 	var data structs.Data
@@ -173,9 +193,8 @@ func username(user slack.User) string {
 
 var emojiSkinTone = regexp.MustCompile(`:skin-tone-(\d)`)
 
-func emojiParse(s string) string {
+func emojiParse(s string) template.HTML {
 	if emojiSkinTone.MatchString(s) {
-		log.Printf("skin tone: %s", s)
 		matches := emojiSkinTone.FindStringSubmatch(s)
 		tone := matches[1]
 		suffix := ""
@@ -195,10 +214,19 @@ func emojiParse(s string) string {
 
 		// remove skin tone suffix
 		s = strings.Split(s, "::skin-tone-")[0]
-		return emoji.Parse(":"+s+":") + suffix
+		return template.HTML(emoji.Parse(":"+s+":") + suffix)
 	}
 
-	return emoji.Parse(":" + s + ":")
+	alias, filename := slackEmoji.Get(s)
+	if alias != "" {
+		return template.HTML(emoji.Parse(":" + alias + ":"))
+	}
+
+	if filename != "" {
+		return template.HTML(fmt.Sprintf("<img class=\"emoji\" src=\"emoji/%s\" alt=\":%s:\" />", filename, s))
+	}
+
+	return template.HTML(emoji.Parse(":" + s + ":"))
 }
 
 func first(ss ...string) string {
@@ -328,7 +356,9 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 					"</span>",
 			)
 		case slack.RTSEEmoji:
-			sb.WriteString(emojiParse(rtEelement.(*slack.RichTextSectionEmojiElement).Name))
+			sb.WriteString(
+				string(emojiParse(rtEelement.(*slack.RichTextSectionEmojiElement).Name)),
+			)
 		case slack.RTSELink:
 			if rtEelement.(*slack.RichTextSectionLinkElement).Text != "" {
 				sb.WriteString(fmt.Sprintf("<a href=\"%s\">%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).Text))

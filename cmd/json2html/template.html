@@ -94,6 +94,7 @@ video, img {
   height: 2em;
   border-radius: 5px;
   margin-right: 0.33em;
+  border: thin solid rgba(0,0,0,0.3);
 }
 
 .timestamp {
@@ -148,6 +149,12 @@ video, img {
   vertical-align: text-top;
   user-select: none;
   cursor: default;
+}
+
+.emoji {
+  display: inline-block;
+  max-width: 18px;
+  margin-bottom: -4px;
 }
 
 .replies {
@@ -208,17 +215,17 @@ video, img {
             </span>
             {{ $checkPrevMessage = true }}
         {{ end }}
-        <span class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
+        <div class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
           {{ with .Files }}
           <div class="files">{{ range . }}<div class="file">{{ attachment . $.Files $.Channel }}</div>{{ end }}</div>
           {{ end }}
-        </span>
+        </div>
         {{ end }}
 
         {{ with .Reactions }}
         <ul class="reactions">
             {{ range . }}
-            <li title="{{ range .Users }}{{ username (lookupUser . $.Users) }}, {{ end }}">{{ emoji .Name }}<span>{{ .Count }}</span></li>
+            <li title="{{ usersList .Users $.Users }}">{{ emoji .Name }}<span>{{ .Count }}</span></li>
             {{ end }}
         </ul>
         {{ end }}
@@ -239,7 +246,11 @@ video, img {
                     {{ $checkPrevMessage = true }}
                 {{ else }}
                 {{ end }}
-                <span class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}</span>
+                <div class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
+                  {{ with .Files }}
+                  <div class="files">{{ range . }}<div class="file">{{ attachment . $.Files $.Channel }}</div>{{ end }}</div>
+                  {{ end }}
+                </div>
             </li>
             {{ $prevMessage = . }}
             {{ end }}
