@@ -181,15 +181,15 @@ func emojiParse(s string) string {
 		suffix := ""
 
 		switch tone {
-		case "1":
-			suffix = emoji.Light.String()
 		case "2":
-			suffix = emoji.MediumLight.String()
+			suffix = emoji.Light.String()
 		case "3":
-			suffix = emoji.Medium.String()
+			suffix = emoji.MediumLight.String()
 		case "4":
-			suffix = emoji.MediumDark.String()
+			suffix = emoji.Medium.String()
 		case "5":
+			suffix = emoji.MediumDark.String()
+		case "6":
 			suffix = emoji.Dark.String()
 		}
 
