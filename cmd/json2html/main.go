@@ -68,6 +68,9 @@ var (
 			return time.Unix(sec, 0).Format(time.ANSIC)
 		},
 		"emoji": emojiParse,
+		"replace": func(s, old, new string) string {
+			return strings.ReplaceAll(s, old, new)
+		},
 		"format": func(blocks slack.Blocks, users []slack.User) template.HTML {
 			sb := &strings.Builder{}
 			for _, block := range blocks.BlockSet {

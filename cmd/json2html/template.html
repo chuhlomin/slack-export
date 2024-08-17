@@ -101,6 +101,8 @@ video, img {
   color: #888;
   font-size: 0.8em;
   margin-left: 1em;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 0.01em;
 }
 
 .message > ul,
@@ -193,29 +195,29 @@ video, img {
     <li class="message-container">
         {{ if eq .SubType "channel_join" }}
         <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
-        <span class="joined">
+        <span class="joined" id="p{{ replace .Timestamp "." "" }}">
           <strong class="username">{{ username $user }}</strong> has joined the channel
-          <span class="timestamp">{{ formatTime .Timestamp }}</span>
+          <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
           {{ $checkPrevMessage = false }}
         </span>
         {{ else if eq .SubType "channel_leave" }}
         <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
-        <span class="left">
+        <span class="left" id="p{{ replace .Timestamp "." "" }}">
           <strong class="username">{{ username $user }}</strong> has left the channel
-          <span class="timestamp">{{ formatTime .Timestamp }}</span>
+          <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
           {{ $checkPrevMessage = false }}
         </span>
         {{ else }}
         {{ $newContext := or (not $checkPrevMessage) (not (sameMessage $prevMessage .)) }}
         {{ if $newContext }}
             <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
-            <span class="message-header">
+            <span id="p{{ replace .Timestamp "." "" }}" class="message-header">
               <strong class="username">{{ username $user }}</strong>
-              <span class="timestamp">{{ formatTime .Timestamp }}</span><br>
+              <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
             </span>
             {{ $checkPrevMessage = true }}
         {{ end }}
-        <div class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
+        <div {{ if not $newContext }}id="p{{ replace .Timestamp "." "" }}" {{ end }}class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
           {{ with .Files }}
           <div class="files">{{ range . }}<div class="file">{{ attachment . $.Files $.Channel }}</div>{{ end }}</div>
           {{ end }}
@@ -239,14 +241,14 @@ video, img {
             <li class="message-container">
                 {{ if $newContext }}
                     <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
-                    <span class="message-header">
+                    <span class="message-header" id="p{{ replace .Timestamp "." "" }}">
                       <strong class="username">{{ username $user }}</strong>
-                      <span class="timestamp">{{ formatTime .Timestamp }}</span><br>
+                      <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
                     </span>
                     {{ $checkPrevMessage = true }}
                 {{ else }}
                 {{ end }}
-                <div class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
+                <div {{ if not $newContext }}id="p{{ replace .Timestamp "." "" }}" {{ end }}class="message{{ if not $newContext }} same{{ end }}">{{ format .Blocks $.Users }}
                   {{ with .Files }}
                   <div class="files">{{ range . }}<div class="file">{{ attachment . $.Files $.Channel }}</div>{{ end }}</div>
                   {{ end }}
