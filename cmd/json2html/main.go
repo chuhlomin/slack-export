@@ -87,7 +87,11 @@ var (
 		"attachment": func(file slack.File, files map[string]string, channel slack.Channel) template.HTML {
 			filename, ok := files[file.ID]
 			if !ok {
-				return template.HTML(fmt.Sprintf("<a href=\"%s\">%s</a>", file.URLPrivateDownload, file.Title))
+				url := file.URLPrivateDownload
+				if url == "" {
+					url = file.URLPrivate
+				}
+				return template.HTML(fmt.Sprintf("<a href=\"%s\">%s</a>", url, file.Title))
 			}
 
 			// url-encode filename (account for \u202f symbol)
