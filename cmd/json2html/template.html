@@ -192,14 +192,14 @@ video, img {
     {{ $user := lookupUser .User $.Users }}
     <li class="message-container">
         {{ if eq .SubType "channel_join" }}
-        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+        <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
         <span class="joined">
           <strong class="username">{{ username $user }}</strong> has joined the channel
           <span class="timestamp">{{ formatTime .Timestamp }}</span>
           {{ $checkPrevMessage = false }}
         </span>
         {{ else if eq .SubType "channel_leave" }}
-        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+        <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
         <span class="left">
           <strong class="username">{{ username $user }}</strong> has left the channel
           <span class="timestamp">{{ formatTime .Timestamp }}</span>
@@ -208,7 +208,7 @@ video, img {
         {{ else }}
         {{ $newContext := or (not $checkPrevMessage) (not (sameMessage $prevMessage .)) }}
         {{ if $newContext }}
-            <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+            <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
             <span class="message-header">
               <strong class="username">{{ username $user }}</strong>
               <span class="timestamp">{{ formatTime .Timestamp }}</span><br>
@@ -238,7 +238,7 @@ video, img {
             {{ $newContext := or (not $checkPrevMessage) (not (sameSlackMessage $prevMessage .)) }}
             <li class="message-container">
                 {{ if $newContext }}
-                    <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+                    <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
                     <span class="message-header">
                       <strong class="username">{{ username $user }}</strong>
                       <span class="timestamp">{{ formatTime .Timestamp }}</span><br>

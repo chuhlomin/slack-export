@@ -26,7 +26,7 @@ import (
 
 type config struct {
 	Input    string `long:"input" description:"Input JSON file" required:"true"`
-	EmojiDir string `long:"emoji-dir" description:"Directory with emoji"`
+	EmojiDir string `long:"emoji" description:"Directory with emoji"`
 	Output   string `long:"output" description:"Output HTML file" required:"true"`
 }
 
@@ -37,8 +37,9 @@ var (
 	fm  = template.FuncMap{
 		"lookupUser": lookupUser,
 		"username":   username,
-		"avatar": func(user slack.User) string {
-			return user.Profile.Image512
+		"avatar": func(user slack.User, channel slack.Channel) string {
+			return filepath.Join(channel.ID, user.ID+".png")
+			// return user.Profile.Image512
 		},
 		"sameMessage": func(a, b structs.Message) bool {
 			return a.SameContext(b)
@@ -91,17 +92,19 @@ var (
 
 			switch file.Filetype {
 			case "png", "jpg", "gif":
+				w, h := maxLength(file.OriginalW, file.OriginalH, 550, 550)
 				return template.HTML(
 					fmt.Sprintf(
-						"<img src=\"%s\" alt=\"%s\" />",
+						"<img loading=\"lazy\" src=\"%s\" alt=\"%s\" class=\"attachment\" width=\"%d\" height=\"%d\"/>",
 						filepath.Join(channel.ID, file.ID+"-"+filename),
 						file.Title,
+						w, h,
 					),
 				)
 			case "mov", "mp4":
 				return template.HTML(
 					fmt.Sprintf(
-						"<video controls src=\"%s\" alt=\"%s\" />",
+						"<video controls preload=\"none\" src=\"%s\" alt=\"%s\" class=\"attachment\"/>",
 						filepath.Join(channel.ID, file.ID+"-"+filename),
 						file.Title,
 					),
@@ -373,4 +376,18 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 	}
 
 	return sb.String()
+}
+
+func maxLength(w, h, maxW, maxH int) (int, int) {
+	if w > maxW {
+		h = h * maxW / w
+		w = maxW
+	}
+
+	if h > maxH {
+		w = w * maxH / h
+		h = maxH
+	}
+
+	return w, h
 }
