@@ -191,6 +191,7 @@ video, img {
 <body>
 <h1>{{ .Channel.Name }}</h1>
 
+{{ if .Messages }}
 <ul class="messages">
     {{ $checkPrevMessage := false }}
     {{ $prevMessage := index .Messages 0 }}
@@ -267,5 +268,8 @@ video, img {
     {{ $prevMessage = . }}
     {{ end }}
 </ul>
+{{ else }}
+<p>No messages found</p>
+{{ end }}
 </body>
 </html>

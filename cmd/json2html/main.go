@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,26 +26,33 @@ import (
 )
 
 type config struct {
-	Input    string `long:"input" description:"Input JSON file" required:"true"`
+	Input    string `long:"input" short:"i" description:"Input JSON file or directory" required:"true"`
+	Output   string `long:"output" short:"o" description:"Output HTML file or directory" required:"true"`
 	EmojiDir string `long:"emoji" description:"Directory with emoji"`
-	Output   string `long:"output" description:"Output HTML file" required:"true"`
 }
 
 //go:embed template.html
 var tmpl string
+
+//go:embed index.html
+var index string
+
 var (
 	cfg config
 	fm  = template.FuncMap{
 		"lookupUser": lookupUser,
 		"username":   username,
-		"avatar": func(user slack.User, channel slack.Channel) string {
-			return filepath.Join(channel.ID, user.ID+".png")
+		"avatar": func(user *slack.User, channel slack.Channel) string {
+			if user == nil {
+				return ""
+			}
+			return filepath.Join("avatars", user.ID+".png")
 			// return user.Profile.Image512
 		},
 		"sameMessage": func(a, b structs.Message) bool {
 			return a.SameContext(b)
 		},
-		"usersList": func(ids []string, users []slack.User) string {
+		"usersList": func(ids []string, users map[string]*slack.User) string {
 			var names = make([]string, 0, len(ids))
 
 			for _, id := range ids {
@@ -71,7 +79,7 @@ var (
 		"replace": func(s, old, new string) string {
 			return strings.ReplaceAll(s, old, new)
 		},
-		"format": func(blocks slack.Blocks, users []slack.User) template.HTML {
+		"format": func(blocks slack.Blocks, users map[string]*slack.User) template.HTML {
 			sb := &strings.Builder{}
 			for _, block := range blocks.BlockSet {
 				switch block.BlockType() {
@@ -152,47 +160,138 @@ func run() error {
 		}
 	}
 
-	var data structs.Data
-	content, err := os.ReadFile(cfg.Input)
-	if err != nil {
-		return fmt.Errorf("could not read file: %v", err)
-	}
-
-	if err := json.Unmarshal(content, &data); err != nil {
-		return fmt.Errorf("could not unmarshal messages: %v", err)
-	}
-
 	t, err := template.New("template").Funcs(fm).Parse(tmpl)
 	if err != nil {
 		return fmt.Errorf("could not parse template: %v", err)
 	}
 
-	o, err := os.Create(cfg.Output)
+	// check if input is a file or a directory
+	info, err := os.Stat(cfg.Input)
 	if err != nil {
-		return fmt.Errorf("could not create file: %v", err)
+		return fmt.Errorf("could not get file info: %v", err)
+	}
+
+	if !info.IsDir() {
+		_, err := processFile(cfg.Input, cfg.Output, t)
+		if err != nil {
+			return fmt.Errorf("could not process file %q: %v", cfg.Input, err)
+		}
+		return nil
+	}
+
+	return processDirectory(cfg.Input, cfg.Output, t)
+}
+
+func processDirectory(input, output string, t *template.Template) error {
+	it, err := template.New("index").Funcs(fm).Parse(index)
+	if err != nil {
+		return fmt.Errorf("could not parse index template: %v", err)
+	}
+
+	if err := os.MkdirAll(output, 0755); err != nil {
+		return fmt.Errorf("could not create output directory: %v", err)
+	}
+
+	files, err := os.ReadDir(input)
+	if err != nil {
+		return fmt.Errorf("could not read directory: %v", err)
+	}
+
+	var channels []*slack.Channel
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if filepath.Ext(file.Name()) != ".json" {
+			continue
+		}
+
+		outputFilename := strings.TrimSuffix(file.Name(), ".json") + ".html"
+
+		log.Printf("Processing file %q", file.Name())
+		channel, err := processFile(
+			filepath.Join(input, file.Name()),
+			filepath.Join(output, outputFilename),
+			t,
+		)
+		if err != nil {
+			return fmt.Errorf("could not process file %q: %v", file.Name(), err)
+		}
+
+		channels = append(channels, channel)
+	}
+
+	log.Printf("Generating index")
+	return generateIndex(output, channels, it)
+}
+
+func processFile(input, output string, t *template.Template) (*slack.Channel, error) {
+	var data structs.Data
+	content, err := os.ReadFile(input)
+	if err != nil {
+		return nil, fmt.Errorf("could not read file: %v", err)
+	}
+
+	if err := json.Unmarshal(content, &data); err != nil {
+		return nil, fmt.Errorf("could not unmarshal messages: %v", err)
+	}
+
+	o, err := os.Create(output)
+	if err != nil {
+		return nil, fmt.Errorf("could not create file: %v", err)
 	}
 
 	slices.Reverse(data.Messages)
 
 	if err := t.Execute(o, data); err != nil {
-		return fmt.Errorf("could not execute template: %v", err)
+		return nil, fmt.Errorf("could not execute template: %v", err)
+	}
+
+	return &data.Channel, nil
+}
+
+func generateIndex(output string, channels []*slack.Channel, t *template.Template) error {
+	o, err := os.Create(filepath.Join(output, "index.html"))
+	if err != nil {
+		return fmt.Errorf("could not create index file: %v", err)
+	}
+
+	// sort alphabetically
+	sort.Slice(channels, func(i, j int) bool {
+		return channels[i].Name < channels[j].Name
+	})
+
+	if err := t.Execute(o, struct {
+		Channels []*slack.Channel
+	}{
+		Channels: channels,
+	}); err != nil {
+		return fmt.Errorf("could not execute index template: %v", err)
 	}
 
 	return nil
 }
 
-func lookupUser(id string, users []slack.User) slack.User {
-	for _, user := range users {
-		if user.ID == id {
-			return user
-		}
+func lookupUser(id string, users map[string]*slack.User) *slack.User {
+	if id == "" {
+		return nil
+	}
+
+	if user, ok := users[id]; ok {
+		return user
 	}
 
 	log.Printf("User not found: %s", id)
-	return slack.User{}
+	return nil
 }
 
-func username(user slack.User) string {
+func username(user *slack.User) string {
+	if user == nil {
+		return "unknown"
+	}
+
 	return first(
 		user.Profile.RealNameNormalized,
 		user.RealName,
@@ -251,7 +350,7 @@ func first(ss ...string) string {
 
 func processRichTextElements(
 	elements []slack.RichTextElement,
-	users []slack.User,
+	users map[string]*slack.User,
 	transforms ...func(string) string,
 ) string {
 	result := strings.Builder{}
@@ -323,7 +422,7 @@ func processRichTextElements(
 	return result.String()
 }
 
-func processRichTextSectionElements(elements []slack.RichTextSectionElement, users []slack.User) string {
+func processRichTextSectionElements(elements []slack.RichTextSectionElement, users map[string]*slack.User) string {
 	sb := strings.Builder{}
 	var code bool
 
