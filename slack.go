@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -57,6 +56,8 @@ type SlackClient struct {
 	api          *slack.Client
 	seenUsers    map[string]interface{}
 	files        map[string]string // id -> url_private_download
+
+	UsersCache map[string]*slack.User
 }
 
 // NewSlackClient creates a new SlackClient.
@@ -69,6 +70,7 @@ func NewSlackClient(id, secret string) *SlackClient {
 		clientSecret: secret,
 		seenUsers:    make(map[string]interface{}),
 		files:        make(map[string]string),
+		UsersCache:   make(map[string]*slack.User),
 	}
 }
 
@@ -116,7 +118,7 @@ func (sc *SlackClient) SetToken(token string) {
 // GetToken requests a token from the Slack API using the provided code.
 func (sc *SlackClient) GetToken(code string) error {
 	if code == "" {
-		return errors.New("argument 'code' is required")
+		return fmt.Errorf("argument 'code' is required")
 	}
 
 	// set multipart/form-data values
@@ -156,29 +158,93 @@ func (sc *SlackClient) GetToken(code string) error {
 	return nil
 }
 
+func (sc *SlackClient) GetPublicChannels() ([]slack.Channel, error) {
+	var allChannels []slack.Channel
+	cursor := ""
+	for {
+		err := sc.limiter.Wait(sc.ctx)
+		if err != nil {
+			return nil, fmt.Errorf("rate limit error: %v", err)
+		}
+
+		log.Printf("Getting public channels with cursor %q", cursor)
+		resp, next, err := sc.api.GetConversations(&slack.GetConversationsParameters{
+			Types:  []string{"public_channel"},
+			Limit:  999,
+			Cursor: cursor,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not get public channels: %v", err)
+		}
+
+		allChannels = append(allChannels, resp...)
+
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+
+	return allChannels, nil
+}
+
 // GetUsers returns a list of users who have posted messages in the channel.
 // This method is used to get the user names for the messages.
-func (sc *SlackClient) GetUsers() ([]slack.User, error) {
-	users := make([]slack.User, 0, len(sc.seenUsers))
+func (sc *SlackClient) GetUsers() (map[string]*slack.User, error) {
+	result := map[string]*slack.User{}
+
 	for user := range sc.seenUsers {
 		if user == "" {
 			continue
 		}
-		u, err := sc.api.GetUserInfo(user)
-		if err != nil {
-			return nil, fmt.Errorf("%q: %v", user, err)
+		if u, ok := sc.UsersCache[user]; ok {
+			result[user] = u
+			continue
 		}
 
-		users = append(users, *u)
+		u, err := sc.GetUserWithRetry(user)
+		if err != nil {
+			if strings.Contains(err.Error(), "user_not_found") {
+				log.Printf("User %q not found", user)
+				continue
+			}
+			return nil, fmt.Errorf("could not get user %q: %v", user, err)
+		}
+
+		sc.UsersCache[user] = u
+		result[user] = u
 	}
 
-	return users, nil
+	return result, nil
+}
+
+func (sc *SlackClient) GetUserWithRetry(user string) (*slack.User, error) {
+	err := sc.limiter.Wait(sc.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("rate limit error: %v", err)
+	}
+
+	u, err := sc.api.GetUserInfo(user)
+	if err != nil {
+		if slackErr, ok := err.(*slack.RateLimitedError); ok {
+			log.Printf("Rate limit exceeded. Retrying after %v", slackErr.RetryAfter)
+			time.Sleep(slackErr.RetryAfter)
+			return sc.GetUserWithRetry(user)
+		}
+		return nil, fmt.Errorf("%q: %v", user, err)
+	}
+
+	return u, nil
 }
 
 // GetChannelInfo returns information about the channel, such as the name.
 func (sc *SlackClient) GetChannelInfo(channel string) (*slack.Channel, error) {
 	if channel == "" {
-		return nil, errors.New("argument 'channel' is required")
+		return nil, fmt.Errorf("argument 'channel' is required")
+	}
+
+	if err := sc.limiter.Wait(sc.ctx); err != nil {
+		return nil, fmt.Errorf("rate limit error: %v", err)
 	}
 
 	return sc.api.GetConversationInfo(&slack.GetConversationInfoInput{ChannelID: channel})
@@ -187,8 +253,11 @@ func (sc *SlackClient) GetChannelInfo(channel string) (*slack.Channel, error) {
 // GetMessages returns a list of all the messages in the channel.
 func (sc *SlackClient) GetMessages(channel string) ([]structs.Message, error) {
 	if channel == "" {
-		return nil, errors.New("argument 'channel' is required")
+		return nil, fmt.Errorf("argument 'channel' is required")
 	}
+
+	// reset seen users
+	sc.seenUsers = make(map[string]interface{})
 
 	var allMessages []slack.Message
 
@@ -242,7 +311,7 @@ func (sc *SlackClient) GetMessages(channel string) ([]structs.Message, error) {
 // getReplies returns a list of all the replies to a message.
 func (sc *SlackClient) getReplies(channel, messageID string) ([]slack.Message, error) {
 	if channel == "" {
-		return nil, errors.New("argument 'channel' is required")
+		return nil, fmt.Errorf("argument 'channel' is required")
 	}
 
 	var allReplies []slack.Message
@@ -323,7 +392,7 @@ func (sc *SlackClient) DownloadFiles(channelID string) (map[string]string, error
 	result := make(map[string]string)
 
 	// create directory for files
-	err := os.MkdirAll(channelID, 0755)
+	err := os.MkdirAll(filepath.Join(cfg.Output, channelID), 0755)
 	if err != nil {
 		return nil, fmt.Errorf("could not create directory: %v", err)
 	}
@@ -385,7 +454,7 @@ func (sc *SlackClient) downloadFile(path, id, url string) (string, error) {
 	}
 
 	// adding id prefix to filename to avoid collisions (like a few files named image.png)
-	err = os.WriteFile(filepath.Join(path, id+"-"+filename), content, 0644)
+	err = os.WriteFile(filepath.Join(cfg.Output, path, id+"-"+filename), content, 0644)
 	if err != nil {
 		return "", fmt.Errorf("could not write file: %v", err)
 	}

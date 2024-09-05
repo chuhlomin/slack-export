@@ -47,8 +47,8 @@ func (m *Message) SameContext(m2 Message) bool {
 
 // Data struct used to marshal/unmarshal JSON data.
 type Data struct {
-	Channel  slack.Channel     `json:"channel"`
-	Messages []Message         `json:"messages"`
-	Users    []slack.User      `json:"users"`
-	Files    map[string]string `json:"files"`
+	Channel  slack.Channel          `json:"channel"`
+	Messages []Message              `json:"messages"`
+	Users    map[string]*slack.User `json:"users"`
+	Files    map[string]string      `json:"files"`
 }
