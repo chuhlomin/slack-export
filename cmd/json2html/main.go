@@ -443,6 +443,7 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 		case slack.RTSEText:
 			te := rtEelement.(*slack.RichTextSectionTextElement)
 			text := html.EscapeString(te.Text)
+			text = strings.ReplaceAll(text, "\n", "<br>")
 
 			if code && (te.Style == nil || !te.Style.Code) {
 				code = false
