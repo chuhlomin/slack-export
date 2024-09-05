@@ -65,7 +65,7 @@ func downloadFile(id, url, output string) error {
 		return fmt.Errorf("bad status code: %d", resp.StatusCode)
 	}
 
-	filename := filepath.Join(output, id+".png")
+	filename := filepath.Join(output, "avatars", id+".png")
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("could not create file: %v", err)
