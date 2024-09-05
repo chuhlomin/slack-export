@@ -26,10 +26,13 @@ import (
 )
 
 type config struct {
-	Input    string `long:"input" short:"i" description:"Input JSON file or directory" required:"true"`
-	Output   string `long:"output" short:"o" description:"Output HTML file or directory" required:"true"`
-	EmojiDir string `long:"emoji" description:"Directory with emoji"`
+	Input        string `long:"input" short:"i" description:"Input JSON file or directory" required:"true"`
+	Output       string `long:"output" short:"o" description:"Output HTML file or directory" required:"true"`
+	EmojiDir     string `long:"emoji" description:"Directory with emoji"`
+	SkipArchived bool   `long:"skip-archived" description:"Skip archived channels"`
 }
+
+var errChannelIsArchived = fmt.Errorf("channel is archived")
 
 //go:embed template.html
 var tmpl string
@@ -217,6 +220,11 @@ func processDirectory(input, output string, t *template.Template) error {
 			t,
 		)
 		if err != nil {
+			if err == errChannelIsArchived {
+				log.Printf("Channel is archived, skipping")
+				continue
+			}
+
 			return fmt.Errorf("could not process file %q: %v", file.Name(), err)
 		}
 
@@ -236,6 +244,10 @@ func processFile(input, output string, t *template.Template) (*slack.Channel, er
 
 	if err := json.Unmarshal(content, &data); err != nil {
 		return nil, fmt.Errorf("could not unmarshal messages: %v", err)
+	}
+
+	if data.Channel.IsArchived && cfg.SkipArchived {
+		return nil, errChannelIsArchived
 	}
 
 	o, err := os.Create(output)

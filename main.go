@@ -23,6 +23,7 @@ type config struct {
 	Port            string `env:"PORT" long:"port" description:"Server port" default:"8079"`
 	DownloadFiles   bool   `env:"DOWNLOAD_FILES" long:"download-files" description:"Download files"`
 	DownloadAvatars bool   `env:"DOWNLOAD_AVATARS" long:"download-avatars" description:"Download avatars"`
+	SkipArchived    bool   `env:"SKIP_ARCHIVED" long:"skip-archived" description:"Skip archived channels"`
 }
 
 var cfg config
@@ -111,6 +112,11 @@ func exportChannel(c *SlackClient, channelID string) error {
 	channelInfo, err := c.GetChannelInfo(channelID)
 	if err != nil {
 		return fmt.Errorf("could not get channel info: %v", err)
+	}
+
+	if channelInfo.IsArchived && cfg.SkipArchived {
+		log.Printf("Channel %q is archived, skipping", channelInfo.Name)
+		return nil
 	}
 
 	outputFilename := filepath.Join(cfg.Output, channelID+".json")
