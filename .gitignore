@@ -25,3 +25,7 @@ go.work
 /*.json
 /*.html
 /emoji
+
+/output
+/output-site
+/C0*
