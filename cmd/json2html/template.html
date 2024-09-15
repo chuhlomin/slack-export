@@ -199,23 +199,30 @@ video, img {
     {{ $user := lookupUser .User $.Users }}
     <li class="message-container">
         {{ if eq .SubType "channel_join" }}
-        <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
+        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
         <span class="joined" id="p{{ replace .Timestamp "." "" }}">
           <strong class="username">{{ username $user }}</strong> has joined the channel
           <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
           {{ $checkPrevMessage = false }}
         </span>
         {{ else if eq .SubType "channel_leave" }}
-        <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
+        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
         <span class="left" id="p{{ replace .Timestamp "." "" }}">
           <strong class="username">{{ username $user }}</strong> has left the channel
+          <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
+          {{ $checkPrevMessage = false }}
+        </span>
+        {{ else if eq .SubType "channel_purpose" }}
+        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+        <span id="p{{ replace .Timestamp "." "" }}">
+          <strong class="username">{{ username $user }}</strong> set the channel purpose to <em>{{ .Purpose }}</em>
           <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
           {{ $checkPrevMessage = false }}
         </span>
         {{ else }}
         {{ $newContext := or (not $checkPrevMessage) (not (sameMessage $prevMessage .)) }}
         {{ if $newContext }}
-            <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
+            <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
             <span id="p{{ replace .Timestamp "." "" }}" class="message-header">
               <strong class="username">{{ username $user }}</strong>
               <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
@@ -245,7 +252,7 @@ video, img {
             {{ $newContext := or (not $checkPrevMessage) (not (sameSlackMessage $prevMessage .)) }}
             <li class="message-container">
                 {{ if $newContext }}
-                    <img class="avatar" src="{{ avatar $user $.Channel }}" alt="{{ username $user }}">
+                    <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
                     <span class="message-header" id="p{{ replace .Timestamp "." "" }}">
                       <strong class="username">{{ username $user }}</strong>
                       <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
