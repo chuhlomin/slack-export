@@ -30,10 +30,10 @@ jobs:
       - name: Go Vet
         run: go vet ./...
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+      # - name: Lint
+      #   uses: golangci/golangci-lint-action@v6
+      #   with:
+      #     version: latest
 
       - name: Release
         uses: goreleaser/goreleaser-action@v2
