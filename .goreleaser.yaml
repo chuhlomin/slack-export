@@ -1,3 +1,16 @@
+builds:
+  - id: slack-exporter
+    hooks:
+      post: chmod +x {{ .Path }}
+  - id: json2html
+    main: ./cmd/json2html
+    hooks:
+      post: chmod +x {{ .Path }}
+  - id: emoji
+    main: ./cmd/emoji
+    hooks:
+      post: chmod +x {{ .Path }}
+
 notarize:
   macos:
     - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
