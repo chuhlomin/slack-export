@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -45,7 +46,7 @@ var (
 	fm  = template.FuncMap{
 		"lookupUser": lookupUser,
 		"username":   username,
-		"avatar": func(user *slack.User, channel slack.Channel) string {
+		"avatar": func(user *slack.User) string {
 			if user == nil {
 				return ""
 			}
@@ -56,7 +57,7 @@ var (
 			return a.SameContext(b)
 		},
 		"usersList": func(ids []string, users map[string]*slack.User) string {
-			var names = make([]string, 0, len(ids))
+			names := make([]string, 0, len(ids))
 
 			for _, id := range ids {
 				names = append(names, username((lookupUser(id, users))))
@@ -69,7 +70,11 @@ var (
 			return ma.SameContext(structs.Message{Message: b})
 		},
 		"formatTime": func(t string) string {
-			unixPart := t[:strings.Index(t, ".")]
+			dotIndex := strings.Index(t, ".")
+			if dotIndex == -1 {
+				return t
+			}
+			unixPart := t[:dotIndex]
 			sec, err := strconv.ParseInt(unixPart, 10, 64)
 			if err != nil {
 				log.Printf("could not parse time: %v", err)
@@ -78,10 +83,8 @@ var (
 
 			return time.Unix(sec, 0).Format(time.ANSIC)
 		},
-		"emoji": emojiParse,
-		"replace": func(s, old, new string) string {
-			return strings.ReplaceAll(s, old, new)
-		},
+		"emoji":   emojiParse,
+		"replace": strings.ReplaceAll,
 		"format": func(blocks slack.Blocks, users map[string]*slack.User) template.HTML {
 			sb := &strings.Builder{}
 			for _, block := range blocks.BlockSet {
@@ -93,7 +96,7 @@ var (
 				}
 			}
 
-			return template.HTML(sb.String())
+			return template.HTML(sb.String()) // #nosec G203
 		},
 		"attachment": func(file slack.File, files map[string]string, channel slack.Channel) template.HTML {
 			filename, ok := files[file.ID]
@@ -102,7 +105,7 @@ var (
 				if url == "" {
 					url = file.URLPrivate
 				}
-				return template.HTML(fmt.Sprintf("<a href=\"%s\">%s</a>", url, file.Title))
+				return template.HTML(fmt.Sprintf("<a href=%q>%s</a>", url, file.Title)) // #nosec G203
 			}
 
 			// url-encode filename (account for \u202f symbol)
@@ -111,27 +114,27 @@ var (
 			switch file.Filetype {
 			case "png", "jpg", "gif":
 				w, h := maxLength(file.OriginalW, file.OriginalH, 550, 550)
-				return template.HTML(
+				return template.HTML( // #nosec G203
 					fmt.Sprintf(
-						"<img loading=\"lazy\" src=\"%s\" alt=\"%s\" class=\"attachment\" width=\"%d\" height=\"%d\"/>",
+						"<img loading=\"lazy\" src=%q alt=%q class=\"attachment\" width=\"%d\" height=\"%d\"/>",
 						filepath.Join(channel.ID, file.ID+"-"+filename),
 						file.Title,
 						w, h,
 					),
 				)
 			case "mov", "mp4":
-				return template.HTML(
+				return template.HTML( // #nosec G203
 					fmt.Sprintf(
-						"<video controls preload=\"none\" src=\"%s\" alt=\"%s\" class=\"attachment\"/>",
+						"<video controls preload=\"none\" src=%q alt=%q class=\"attachment\"/>",
 						filepath.Join(channel.ID, file.ID+"-"+filename),
 						file.Title,
 					),
 				)
 
 			default:
-				return template.HTML(
+				return template.HTML( // #nosec G203
 					fmt.Sprintf(
-						"<a href=\"%s\" download=\"%s\">%s</a>",
+						"<a href=%q download=%q>%s</a>",
 						filepath.Join(channel.ID, file.ID+"-"+filename),
 						file.Name,
 						file.Title,
@@ -152,32 +155,32 @@ var slackEmoji emojiMap
 
 func run() error {
 	if _, err := flags.Parse(&cfg); err != nil {
-		return fmt.Errorf("could not parse flags: %v", err)
+		return fmt.Errorf("could not parse flags: %w", err)
 	}
 
 	if cfg.EmojiDir != "" {
 		var err error
 		slackEmoji, err = loadSlackEmoji(filepath.Join(cfg.EmojiDir, "emoji.json"))
 		if err != nil {
-			return fmt.Errorf("could not load emoji: %v", err)
+			return fmt.Errorf("could not load emoji: %w", err)
 		}
 	}
 
 	t, err := template.New("template").Funcs(fm).Parse(tmpl)
 	if err != nil {
-		return fmt.Errorf("could not parse template: %v", err)
+		return fmt.Errorf("could not parse template: %w", err)
 	}
 
 	// check if input is a file or a directory
 	info, err := os.Stat(cfg.Input)
 	if err != nil {
-		return fmt.Errorf("could not get file info: %v", err)
+		return fmt.Errorf("could not get file info: %w", err)
 	}
 
 	if !info.IsDir() {
 		_, err := processFile(cfg.Input, cfg.Output, t)
 		if err != nil {
-			return fmt.Errorf("could not process file %q: %v", cfg.Input, err)
+			return fmt.Errorf("could not process file %q: %w", cfg.Input, err)
 		}
 		return nil
 	}
@@ -188,16 +191,16 @@ func run() error {
 func processDirectory(input, output string, t *template.Template) error {
 	it, err := template.New("index").Funcs(fm).Parse(index)
 	if err != nil {
-		return fmt.Errorf("could not parse index template: %v", err)
+		return fmt.Errorf("could not parse index template: %w", err)
 	}
 
-	if err := os.MkdirAll(output, 0755); err != nil {
-		return fmt.Errorf("could not create output directory: %v", err)
+	if err := os.MkdirAll(output, 0o755); err != nil {
+		return fmt.Errorf("could not create output directory: %w", err)
 	}
 
 	files, err := os.ReadDir(input)
 	if err != nil {
-		return fmt.Errorf("could not read directory: %v", err)
+		return fmt.Errorf("could not read directory: %w", err)
 	}
 
 	var channels []*slack.Channel
@@ -220,12 +223,12 @@ func processDirectory(input, output string, t *template.Template) error {
 			t,
 		)
 		if err != nil {
-			if err == errChannelIsArchived {
+			if errors.Is(err, errChannelIsArchived) {
 				log.Printf("Channel is archived, skipping")
 				continue
 			}
 
-			return fmt.Errorf("could not process file %q: %v", file.Name(), err)
+			return fmt.Errorf("could not process file %q: %w", file.Name(), err)
 		}
 
 		channels = append(channels, channel)
@@ -239,11 +242,11 @@ func processFile(input, output string, t *template.Template) (*slack.Channel, er
 	var data structs.Data
 	content, err := os.ReadFile(input)
 	if err != nil {
-		return nil, fmt.Errorf("could not read file: %v", err)
+		return nil, fmt.Errorf("could not read file: %w", err)
 	}
 
 	if err := json.Unmarshal(content, &data); err != nil {
-		return nil, fmt.Errorf("could not unmarshal messages: %v", err)
+		return nil, fmt.Errorf("could not unmarshal messages: %w", err)
 	}
 
 	if data.Channel.IsArchived && cfg.SkipArchived {
@@ -252,13 +255,13 @@ func processFile(input, output string, t *template.Template) (*slack.Channel, er
 
 	o, err := os.Create(output)
 	if err != nil {
-		return nil, fmt.Errorf("could not create file: %v", err)
+		return nil, fmt.Errorf("could not create file: %w", err)
 	}
 
 	slices.Reverse(data.Messages)
 
 	if err := t.Execute(o, data); err != nil {
-		return nil, fmt.Errorf("could not execute template: %v", err)
+		return nil, fmt.Errorf("could not execute template: %w", err)
 	}
 
 	return &data.Channel, nil
@@ -267,7 +270,7 @@ func processFile(input, output string, t *template.Template) (*slack.Channel, er
 func generateIndex(output string, channels []*slack.Channel, t *template.Template) error {
 	o, err := os.Create(filepath.Join(output, "index.html"))
 	if err != nil {
-		return fmt.Errorf("could not create index file: %v", err)
+		return fmt.Errorf("could not create index file: %w", err)
 	}
 
 	// sort alphabetically
@@ -280,7 +283,7 @@ func generateIndex(output string, channels []*slack.Channel, t *template.Templat
 	}{
 		Channels: channels,
 	}); err != nil {
-		return fmt.Errorf("could not execute index template: %v", err)
+		return fmt.Errorf("could not execute index template: %w", err)
 	}
 
 	return nil
@@ -335,19 +338,21 @@ func emojiParse(s string) template.HTML {
 
 		// remove skin tone suffix
 		s = strings.Split(s, "::skin-tone-")[0]
-		return template.HTML(emoji.Parse(":"+s+":") + suffix)
+		return template.HTML(emoji.Parse(":"+s+":") + suffix) // #nosec G203
 	}
 
 	alias, filename := slackEmoji.Get(s)
 	if alias != "" {
-		return template.HTML(emoji.Parse(":" + alias + ":"))
+		return template.HTML(emoji.Parse(":" + alias + ":")) // #nosec G203
 	}
 
 	if filename != "" {
-		return template.HTML(fmt.Sprintf("<img class=\"emoji\" src=\"emoji/%s\" alt=\":%s:\" />", filename, s))
+		return template.HTML( // #nosec G203
+			fmt.Sprintf("<img class=\"emoji\" src=\"emoji/%s\" alt=\":%s:\" />", filename, s),
+		)
 	}
 
-	return template.HTML(emoji.Parse(":" + s + ":"))
+	return template.HTML(emoji.Parse(":" + s + ":")) // #nosec G203
 }
 
 func first(ss ...string) string {
@@ -386,14 +391,18 @@ func processRichTextElements(
 			for _, rtEelement := range element.(*slack.RichTextPreformatted).Elements {
 				switch rtEelement.RichTextSectionElementType() {
 				case slack.RTSEText:
-					te := rtEelement.(*slack.RichTextSectionTextElement)
+					te, ok := rtEelement.(*slack.RichTextSectionTextElement)
+					if !ok {
+						log.Printf("could not cast to RichTextSectionTextElement")
+						continue
+					}
 					text := html.EscapeString(te.Text)
 					sb.WriteString(text)
 				case slack.RTSELink:
 					if rtEelement.(*slack.RichTextSectionLinkElement).Text != "" {
-						sb.WriteString(fmt.Sprintf("<a href=\"%s\">%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).Text))
+						sb.WriteString(fmt.Sprintf("<a href=%q>%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).Text))
 					} else {
-						sb.WriteString(fmt.Sprintf("<a href=\"%s\">%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).URL))
+						sb.WriteString(fmt.Sprintf("<a href=%q>%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).URL))
 					}
 				}
 			}
@@ -441,7 +450,11 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 	for _, rtEelement := range elements {
 		switch rtEelement.RichTextSectionElementType() {
 		case slack.RTSEText:
-			te := rtEelement.(*slack.RichTextSectionTextElement)
+			te, ok := rtEelement.(*slack.RichTextSectionTextElement)
+			if !ok {
+				log.Printf("could not cast to RichTextSectionTextElement")
+				continue
+			}
 			text := html.EscapeString(te.Text)
 			text = strings.ReplaceAll(text, "\n", "<br>")
 
@@ -464,8 +477,6 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 					if !code {
 						code = true
 						text = fmt.Sprintf("<code>%s", text)
-					} else {
-						text = fmt.Sprintf("%s", text)
 					}
 				}
 			}
@@ -483,9 +494,9 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 			)
 		case slack.RTSELink:
 			if rtEelement.(*slack.RichTextSectionLinkElement).Text != "" {
-				sb.WriteString(fmt.Sprintf("<a href=\"%s\">%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).Text))
+				sb.WriteString(fmt.Sprintf("<a href=%q>%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).Text))
 			} else {
-				sb.WriteString(fmt.Sprintf("<a href=\"%s\">%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).URL))
+				sb.WriteString(fmt.Sprintf("<a href=%q>%s</a>", rtEelement.(*slack.RichTextSectionLinkElement).URL, rtEelement.(*slack.RichTextSectionLinkElement).URL))
 			}
 		}
 	}
@@ -497,7 +508,7 @@ func processRichTextSectionElements(elements []slack.RichTextSectionElement, use
 	return sb.String()
 }
 
-func maxLength(w, h, maxW, maxH int) (int, int) {
+func maxLength(w, h, maxW, maxH int) (width, height int) {
 	if w > maxW {
 		h = h * maxW / w
 		w = maxW

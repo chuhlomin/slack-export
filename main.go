@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,7 +28,10 @@ type config struct {
 	SkipArchived    bool   `env:"SKIP_ARCHIVED" long:"skip-archived" description:"Skip archived channels"`
 }
 
-var cfg config
+var (
+	cfg          config
+	errBadStatus = fmt.Errorf("bad status code")
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -36,7 +41,7 @@ func main() {
 
 func run() error {
 	if _, err := flags.Parse(&cfg); err != nil {
-		return fmt.Errorf("could not parse flags: %v", err)
+		return fmt.Errorf("could not parse flags: %w", err)
 	}
 
 	c := NewSlackClient(cfg.AppClientID, cfg.AppClientSecret)
@@ -44,34 +49,34 @@ func run() error {
 	if cfg.APIToken == "" {
 		err := getToken(c)
 		if err != nil {
-			return fmt.Errorf("could not get token: %v", err)
+			return fmt.Errorf("could not get token: %w", err)
 		}
 	} else {
 		c.SetToken(cfg.APIToken)
 	}
 
 	// make sure the output directory exists
-	if err := os.MkdirAll(cfg.Output, 0755); err != nil {
-		return fmt.Errorf("could not create output directory: %v", err)
+	if err := os.MkdirAll(cfg.Output, 0o755); err != nil {
+		return fmt.Errorf("could not create output directory: %w", err)
 	}
 
 	switch cfg.Channel {
 	case "public":
 		err := exportPublicChannels(c)
 		if err != nil {
-			return fmt.Errorf("could not export public channels: %v", err)
+			return fmt.Errorf("could not export public channels: %w", err)
 		}
 	default:
 		err := exportChannel(c, cfg.Channel)
 		if err != nil {
-			return fmt.Errorf("could not export channel %q: %v", cfg.Channel, err)
+			return fmt.Errorf("could not export channel %q: %w", cfg.Channel, err)
 		}
 	}
 
 	if cfg.DownloadAvatars {
 		log.Println("Downloading avatars")
 		if err := downloadAvatars(c); err != nil {
-			return fmt.Errorf("could not download avatars: %v", err)
+			return fmt.Errorf("could not download avatars: %w", err)
 		}
 	}
 
@@ -86,7 +91,7 @@ func getToken(c *SlackClient) error {
 
 	go func() {
 		err := s.Start()
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && errors.Is(err, http.ErrServerClosed) {
 			log.Printf("could not start server: %v", err)
 		}
 	}()
@@ -111,7 +116,7 @@ func getToken(c *SlackClient) error {
 func exportChannel(c *SlackClient, channelID string) error {
 	channelInfo, err := c.GetChannelInfo(channelID)
 	if err != nil {
-		return fmt.Errorf("could not get channel info: %v", err)
+		return fmt.Errorf("could not get channel %q info: %w", channelID, err)
 	}
 
 	if channelInfo.IsArchived && cfg.SkipArchived {
@@ -127,12 +132,12 @@ func exportChannel(c *SlackClient, channelID string) error {
 		// read the file to pull users
 		data, err := os.ReadFile(outputFilename)
 		if err != nil {
-			return fmt.Errorf("could not read file: %v", err)
+			return fmt.Errorf("could not read file: %w", err)
 		}
 
 		var d structs.Data
 		if err = json.Unmarshal(data, &d); err != nil {
-			return fmt.Errorf("could not unmarshal data: %v", err)
+			return fmt.Errorf("could not unmarshal data: %w", err)
 		}
 
 		for id, user := range d.Users {
@@ -143,20 +148,20 @@ func exportChannel(c *SlackClient, channelID string) error {
 
 	msgs, err := c.GetMessages(channelID)
 	if err != nil {
-		return fmt.Errorf("could not get messages: %v", err)
+		return fmt.Errorf("could not get messages: %w", err)
 	}
 
 	var files map[string]string
 	if cfg.DownloadFiles {
 		files, err = c.DownloadFiles(channelID)
 		if err != nil {
-			return fmt.Errorf("could not download files: %v", err)
+			return fmt.Errorf("could not download files: %w", err)
 		}
 	}
 
 	users, err := c.GetUsers()
 	if err != nil {
-		return fmt.Errorf("could not get users: %v", err)
+		return fmt.Errorf("could not get users: %w", err)
 	}
 
 	data := structs.Data{
@@ -169,11 +174,11 @@ func exportChannel(c *SlackClient, channelID string) error {
 	// Save to a file
 	content, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("could not marshal messages: %v", err)
+		return fmt.Errorf("could not marshal messages: %w", err)
 	}
 
-	if err = os.WriteFile(outputFilename, content, 0644); err != nil {
-		return fmt.Errorf("could not write messages to file: %v", err)
+	if err = os.WriteFile(outputFilename, content, 0o600); err != nil {
+		return fmt.Errorf("could not write messages to file: %w", err)
 	}
 
 	return nil
@@ -182,14 +187,14 @@ func exportChannel(c *SlackClient, channelID string) error {
 func exportPublicChannels(c *SlackClient) error {
 	channels, err := c.GetPublicChannels()
 	if err != nil {
-		return fmt.Errorf("could not get public channels: %v", err)
+		return fmt.Errorf("could not get public channels: %w", err)
 	}
 
 	for _, channel := range channels {
 		log.Printf("Exporting channel %q (%s)", channel.Name, channel.ID)
 		err := exportChannel(c, channel.ID)
 		if err != nil {
-			return fmt.Errorf("could not export channel %q: %v", channel.Name, err)
+			return fmt.Errorf("could not export channel %q: %w", channel.Name, err)
 		}
 	}
 
@@ -197,16 +202,16 @@ func exportPublicChannels(c *SlackClient) error {
 }
 
 func downloadAvatars(c *SlackClient) error {
-	err := os.MkdirAll(filepath.Join(cfg.Output, "avatars"), 0755)
+	err := os.MkdirAll(filepath.Join(cfg.Output, "avatars"), 0o755)
 	if err != nil {
-		return fmt.Errorf("could not create avatars directory: %v", err)
+		return fmt.Errorf("could not create avatars directory: %w", err)
 	}
 
 	for _, user := range c.UsersCache {
 		if user.Profile.Image512 != "" {
 			err := downloadFile(user.ID, user.Profile.Image512, cfg.Output)
 			if err != nil {
-				return fmt.Errorf("could not download avatar: %v", err)
+				return fmt.Errorf("could not download avatar: %w", err)
 			}
 		}
 	}
@@ -214,29 +219,34 @@ func downloadAvatars(c *SlackClient) error {
 	return nil
 }
 
-func downloadFile(id, url, output string) error {
-	resp, err := http.Get(url)
+func downloadFile(id, fileURL, output string) error {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, fileURL, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("could not send request: %v", err)
+		return fmt.Errorf("could not create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not send request: %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status code: %d", resp.StatusCode)
+		return fmt.Errorf("%w: %d", errBadStatus, resp.StatusCode)
 	}
 
 	filename := filepath.Join(output, "avatars", id+".png")
 	file, err := os.Create(filename)
 	if err != nil {
-		return fmt.Errorf("could not create file: %v", err)
+		return fmt.Errorf("could not create file: %w", err)
 	}
 
 	defer file.Close()
 
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		return fmt.Errorf("could not write file: %v", err)
+		return fmt.Errorf("could not write file: %w", err)
 	}
 
 	return nil

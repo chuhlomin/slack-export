@@ -3,6 +3,7 @@
 package structs
 
 import (
+	"errors"
 	"log"
 	"math"
 	"strconv"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/slack-go/slack"
 )
+
+const sameContextDuration = 15 * time.Minute
+
+var errNoDotInTimestamp = errors.New("no dot in timestamp")
 
 // Message is a wrapper for slack.Message with replies.
 type Message struct {
@@ -23,26 +28,33 @@ func (m *Message) SameContext(m2 Message) bool {
 		return false
 	}
 
-	// timestamp difference is less than 15 minutes
-	mTs := m.Timestamp[:strings.Index(m.Timestamp, ".")]
-	m2Ts := m2.Timestamp[:strings.Index(m2.Timestamp, ".")]
-	mSec, err := strconv.ParseInt(mTs, 10, 64)
+	mSec, err := extractUnixTimestamp(m.Timestamp)
 	if err != nil {
-		log.Printf("could not parse time: %v", err)
+		log.Printf("could not extract timestamp from %q: %v", m.Timestamp, err)
 		return false
 	}
 
-	m2Sec, err := strconv.ParseInt(m2Ts, 10, 64)
+	m2Sec, err := extractUnixTimestamp(m2.Timestamp)
 	if err != nil {
-		log.Printf("could not parse time: %v", err)
+		log.Printf("could not extract timestamp from %q: %v", m2.Timestamp, err)
 		return false
 	}
 
-	if time.Duration(math.Abs(float64(mSec-m2Sec))) > 15*time.Minute {
+	if time.Duration(math.Abs(float64(mSec-m2Sec))) > sameContextDuration {
 		return false
 	}
 
 	return true
+}
+
+func extractUnixTimestamp(ts string) (int64, error) {
+	dotIndex := strings.Index(ts, ".")
+	if dotIndex == -1 {
+		return 0, errNoDotInTimestamp
+	}
+
+	ts = ts[:dotIndex]
+	return strconv.ParseInt(ts, 10, 64)
 }
 
 // Data struct used to marshal/unmarshal JSON data.

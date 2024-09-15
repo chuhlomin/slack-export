@@ -25,7 +25,7 @@ func loadSlackEmoji(path string) (emojiMap, error) {
 	return m, nil
 }
 
-func (m emojiMap) Get(needle string) (alias string, filename string) {
+func (m emojiMap) Get(needle string) (alias, filename string) {
 	e, ok := m[needle]
 	if !ok {
 		return "", ""

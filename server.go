@@ -1,7 +1,11 @@
 // HTTP server implementation for OAuth callback
 package main
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+	"time"
+)
 
 // Server is an HTTP server that listens for OAuth callbacks.
 type Server struct {
@@ -14,7 +18,8 @@ type Server struct {
 func NewServer(address, port, state string, code chan string) *Server {
 	return &Server{
 		svc: &http.Server{
-			Addr: address + ":" + port,
+			Addr:              address + ":" + port,
+			ReadHeaderTimeout: 10 * time.Second,
 		},
 		state: state,
 		code:  code,
@@ -46,7 +51,10 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write([]byte("Code received. You can close this tab now."))
+	_, err := w.Write([]byte("Code received. You can close this tab now."))
+	if err != nil {
+		log.Printf("could not write response: %v", err)
+	}
 
 	s.code <- code
 }
