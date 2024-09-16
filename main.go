@@ -9,18 +9,21 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/chuhlomin/slack-export/pkg/structs"
 	"github.com/jessevdk/go-flags"
 )
 
 type config struct {
-	Channel         string `env:"CHANNEL" long:"channel" description:"Slack channel ID; pass \"public\" to export all public channels" required:"true"`
+	Channels        string `env:"CHANNELS" long:"channels" description:"Slack channel ID; pass \"public\" to export all public channels" required:"true"`
 	Output          string `env:"OUTPUT" long:"output" description:"Output directory" default:"output"`
 	APIToken        string `env:"API_TOKEN" long:"api-token" description:"Slack API Token"`
-	AppClientID     string `env:"APP_CLIENT_ID" long:"app-client-id" description:"Slack App Client ID"`
-	AppClientSecret string `env:"APP_CLIENT_SECRET" long:"app-client-secret" description:"Slack App Client Secret"`
+	AppClientID     string `env:"APP_CLIENT_ID" long:"app-client-id" description:"Slack App Client ID" required:"true"`
+	AppClientSecret string `env:"APP_CLIENT_SECRET" long:"app-client-secret" description:"Slack App Client Secret" required:"true"`
 	Address         string `env:"ADDRESS" long:"address" description:"Server address" default:"localhost"`
 	Port            string `env:"PORT" long:"port" description:"Server port" default:"8079"`
 	DownloadFiles   bool   `env:"DOWNLOAD_FILES" long:"download-files" description:"Download files"`
@@ -60,16 +63,39 @@ func run() error {
 		return fmt.Errorf("could not create output directory: %w", err)
 	}
 
-	switch cfg.Channel {
+	// support simple aliases for channel types
+	switch cfg.Channels {
+	case "all":
+		cfg.Channels = "public_channel,private_channel,mpim,im"
 	case "public":
-		err := exportPublicChannels(c)
-		if err != nil {
-			return fmt.Errorf("could not export public channels: %w", err)
+		cfg.Channels = "public_channel"
+	case "private":
+		cfg.Channels = "private_channel,mpim,im"
+	case "dm":
+		cfg.Channels = "im"
+	case "group":
+		cfg.Channels = "mpim"
+	}
+
+	channels := strings.Split(cfg.Channels, ",")
+
+	var channelTypes []string
+	for _, channel := range channels {
+		switch channel {
+		case "public_channel", "private_channel", "mpim", "im":
+			channelTypes = append(channelTypes, channel)
+		default:
+			err := exportChannel(c, channel)
+			if err != nil {
+				return fmt.Errorf("could not export channel %q: %w", channel, err)
+			}
 		}
-	default:
-		err := exportChannel(c, cfg.Channel)
+	}
+
+	if len(channelTypes) > 0 {
+		err := exportChannels(c, channelTypes)
 		if err != nil {
-			return fmt.Errorf("could not export channel %q: %w", cfg.Channel, err)
+			return fmt.Errorf("could not export channels: %w", err)
 		}
 	}
 
@@ -103,10 +129,13 @@ func getToken(c *SlackClient) error {
 		}
 	}()
 
-	log.Printf("App authorization URL: %s", c.GetAuthorizeURL(state))
+	authorizeURL := c.GetAuthorizeURL(state)
 
-	err := c.GetToken(<-code)
-	if err != nil {
+	if err := openBrowser(authorizeURL); err != nil {
+		log.Printf("App authorization URL: %s", authorizeURL)
+	}
+
+	if err := c.GetToken(<-code); err != nil {
 		return err
 	}
 
@@ -184,8 +213,8 @@ func exportChannel(c *SlackClient, channelID string) error {
 	return nil
 }
 
-func exportPublicChannels(c *SlackClient) error {
-	channels, err := c.GetPublicChannels()
+func exportChannels(c *SlackClient, types []string) error {
+	channels, err := c.GetChannels(types)
 	if err != nil {
 		return fmt.Errorf("could not get public channels: %w", err)
 	}
@@ -250,4 +279,19 @@ func downloadFile(id, fileURL, output string) error {
 	}
 
 	return nil
+}
+
+func openBrowser(someURL string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", someURL)
+	case "darwin":
+		cmd = exec.Command("open", someURL)
+	default:
+		cmd = exec.Command("xdg-open", someURL)
+	}
+
+	return cmd.Run()
 }

@@ -180,7 +180,7 @@ func (sc *SlackClient) GetToken(code string) error {
 	return nil
 }
 
-func (sc *SlackClient) GetPublicChannels() ([]slack.Channel, error) {
+func (sc *SlackClient) GetChannels(types []string) ([]slack.Channel, error) {
 	var allChannels []slack.Channel
 	cursor := ""
 	for {
@@ -191,7 +191,7 @@ func (sc *SlackClient) GetPublicChannels() ([]slack.Channel, error) {
 
 		log.Printf("Getting public channels with cursor %q", cursor)
 		resp, next, err := sc.api.GetConversations(&slack.GetConversationsParameters{
-			Types:  []string{"public_channel"},
+			Types:  types,
 			Limit:  999,
 			Cursor: cursor,
 		})
