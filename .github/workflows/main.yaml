@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - "v1*"
+      - "v*"
   pull_request:
 
 permissions:
@@ -30,10 +30,10 @@ jobs:
       - name: Go Vet
         run: go vet ./...
 
-      # - name: Lint
-      #   uses: golangci/golangci-lint-action@v6
-      #   with:
-      #     version: latest
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
 
       - name: Release tag
         if: startsWith(github.ref, 'refs/tags/')
@@ -57,11 +57,6 @@ jobs:
           version: "~> v2"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
-          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
-          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
-          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
-          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
 
       - name: Upload Assets
         if: startsWith(github.ref, 'refs/heads/main')
