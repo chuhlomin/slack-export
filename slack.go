@@ -189,7 +189,7 @@ func (sc *SlackClient) GetChannels(types []string) ([]slack.Channel, error) {
 			return nil, fmt.Errorf("rate limit error: %w", err)
 		}
 
-		log.Printf("Getting public channels with cursor %q", cursor)
+		log.Printf("Getting channels with cursor %q", cursor)
 		resp, next, err := sc.api.GetConversations(&slack.GetConversationsParameters{
 			Types:  types,
 			Limit:  999,

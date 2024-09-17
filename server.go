@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -51,7 +52,7 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := w.Write([]byte("Code received. You can close this tab now."))
+	_, err := w.Write([]byte(fmt.Sprintf("Token received: %s. You can close this tab now.", code)))
 	if err != nil {
 		log.Printf("could not write response: %v", err)
 	}

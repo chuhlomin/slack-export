@@ -14,16 +14,17 @@ import (
 	"runtime"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/chuhlomin/slack-export/pkg/structs"
 	"github.com/jessevdk/go-flags"
 )
 
 type config struct {
-	Channels        string `env:"CHANNELS" long:"channels" description:"Slack channel ID; pass \"public\" to export all public channels" required:"true"`
+	Channels        string `env:"CHANNELS" long:"channels" description:"Slack channel ID; pass \"public\" to export all public channels"`
 	Output          string `env:"OUTPUT" long:"output" description:"Output directory" default:"output"`
 	APIToken        string `env:"API_TOKEN" long:"api-token" description:"Slack API Token"`
-	AppClientID     string `env:"APP_CLIENT_ID" long:"app-client-id" description:"Slack App Client ID" required:"true"`
-	AppClientSecret string `env:"APP_CLIENT_SECRET" long:"app-client-secret" description:"Slack App Client Secret" required:"true"`
+	AppClientID     string `env:"APP_CLIENT_ID" long:"app-client-id" description:"Slack App Client ID"`
+	AppClientSecret string `env:"APP_CLIENT_SECRET" long:"app-client-secret" description:"Slack App Client Secret"`
 	Address         string `env:"ADDRESS" long:"address" description:"Server address" default:"localhost"`
 	Port            string `env:"PORT" long:"port" description:"Server port" default:"8079"`
 	DownloadFiles   bool   `env:"DOWNLOAD_FILES" long:"download-files" description:"Download files"`
@@ -47,6 +48,30 @@ func run() error {
 		return fmt.Errorf("could not parse flags: %w", err)
 	}
 
+	if cfg.AppClientID == "" || cfg.AppClientSecret == "" {
+		model := initialModelInputs(cfg.AppClientID, cfg.AppClientSecret)
+		if _, err := tea.NewProgram(model).Run(); err != nil {
+			return fmt.Errorf("could not get inputs: %w", err)
+		}
+
+		if model.quitting {
+			log.Println("Quitting")
+			return nil
+		}
+
+		if len(model.inputs) != 3 {
+			return errors.New("expected 3 inputs")
+		}
+
+		cfg.AppClientID = model.inputs[0].Value()
+		cfg.AppClientSecret = model.inputs[1].Value()
+		cfg.APIToken = model.inputs[2].Value()
+
+		if cfg.AppClientID == "" || cfg.AppClientSecret == "" {
+			return errors.New("client ID and secret are required")
+		}
+	}
+
 	c := NewSlackClient(cfg.AppClientID, cfg.AppClientSecret)
 
 	if cfg.APIToken == "" {
@@ -63,18 +88,30 @@ func run() error {
 		return fmt.Errorf("could not create output directory: %w", err)
 	}
 
-	// support simple aliases for channel types
-	switch cfg.Channels {
-	case "all":
-		cfg.Channels = "public_channel,private_channel,mpim,im"
-	case "public":
-		cfg.Channels = "public_channel"
-	case "private":
-		cfg.Channels = "private_channel,mpim,im"
-	case "dm":
-		cfg.Channels = "im"
-	case "group":
-		cfg.Channels = "mpim"
+	if cfg.Channels == "" {
+		model := initialModelChoices()
+		p := tea.NewProgram(model)
+		if _, err := p.Run(); err != nil {
+			return err
+		}
+
+		for i := range model.selected {
+			cfg.Channels += model.choices[i] + ","
+		}
+	} else {
+		// support simple aliases for channel types
+		switch cfg.Channels {
+		case "all":
+			cfg.Channels = "public_channel,private_channel,mpim,im"
+		case "public":
+			cfg.Channels = "public_channel"
+		case "private":
+			cfg.Channels = "private_channel,mpim,im"
+		case "dm":
+			cfg.Channels = "im"
+		case "group":
+			cfg.Channels = "mpim"
+		}
 	}
 
 	channels := strings.Split(cfg.Channels, ",")
@@ -84,6 +121,8 @@ func run() error {
 		switch channel {
 		case "public_channel", "private_channel", "mpim", "im":
 			channelTypes = append(channelTypes, channel)
+		case "":
+			continue
 		default:
 			err := exportChannel(c, channel)
 			if err != nil {
@@ -116,8 +155,9 @@ func getToken(c *SlackClient) error {
 	s := NewServer(cfg.Address, cfg.Port, state, code)
 
 	go func() {
+		log.Printf("Starting server on %s:%s, waiting for code...", cfg.Address, cfg.Port)
 		err := s.Start()
-		if err != nil && errors.Is(err, http.ErrServerClosed) {
+		if err != nil && err != http.ErrServerClosed {
 			log.Printf("could not start server: %v", err)
 		}
 	}()
