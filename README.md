@@ -10,31 +10,32 @@ Go to https://api.slack.com/apps and create a new Slack app with app manifest:
 
 ```json
 {
-    "display_information": {
-        "name": "Exporter"
-    },
-    "oauth_config": {
-        "redirect_urls": [
-            "https://exporter.local"
-        ],
-        "scopes": {
-            "user": [
-                "channels:history",
-                "groups:history",
-                "im:history",
-                "mpim:history",
-                "users:read",
-                "channels:read",
-                "files:read",
-                "emoji:read",
-            ]
-        }
-    },
-    "settings": {
-        "org_deploy_enabled": false,
-        "socket_mode_enabled": false,
-        "token_rotation_enabled": false
+  "display_information": {
+    "name": "Exporter"
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://exporter.local"],
+    "scopes": {
+      "user": [
+        "users:read",
+        "files:read",
+        "emoji:read",
+        "channels:read",
+        "channels:history",
+        "groups:read",
+        "groups:history",
+        "im:read",
+        "im:history",
+        "mpim:read",
+        "mpim:history"
+      ]
     }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
 }
 ```
 
@@ -65,7 +66,7 @@ Copy the file `.env-template` to `.env` and add values to the placeholders for `
 
 Find channel, group or DM ID by copying its link and extracting the last part of the URL. For example, the ID for `https://myworkspace.slack.com/archives/D0000000000` is `D0000000000`.
 
-Build and run the main executable from the root of this repo with: 
+Build and run the main executable from the root of this repo with:
 
 ```shell
 go run . --channel="D0000000000"
