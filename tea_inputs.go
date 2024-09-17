@@ -7,19 +7,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 var (
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	cursorStyle         = focusedStyle
-	noStyle             = lipgloss.NewStyle()
-	helpStyle           = blurredStyle
-	cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	blurredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cursorStyle  = focusedStyle
+	noStyle      = lipgloss.NewStyle()
 
 	focusedButton = focusedStyle.Render("[ Submit ]")
 	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
@@ -28,8 +25,6 @@ var (
 type modelInputs struct {
 	focusIndex int
 	inputs     []textinput.Model
-	cursorMode cursor.Mode
-	quitting   bool
 }
 
 func initialModelInputs(clientID, clientSecret string) modelInputs {
@@ -81,7 +76,6 @@ func (mi modelInputs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			mi.quitting = true
 			return mi, tea.Quit
 
 		// Set focus to next input

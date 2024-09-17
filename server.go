@@ -52,7 +52,7 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := w.Write([]byte(fmt.Sprintf("Token received: %s. You can close this tab now.", code)))
+	_, err := fmt.Fprintf(w, "Token received: %s. You can close this tab now.", code)
 	if err != nil {
 		log.Printf("could not write response: %v", err)
 	}

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -54,13 +53,8 @@ func run() error {
 			return fmt.Errorf("could not get inputs: %w", err)
 		}
 
-		if model.quitting {
-			log.Println("Quitting")
-			return nil
-		}
-
 		if len(model.inputs) != 3 {
-			return errors.New("expected 3 inputs")
+			return fmt.Errorf("expected 3 inputs")
 		}
 
 		cfg.AppClientID = model.inputs[0].Value()
@@ -68,7 +62,7 @@ func run() error {
 		cfg.APIToken = model.inputs[2].Value()
 
 		if cfg.AppClientID == "" || cfg.AppClientSecret == "" {
-			return errors.New("client ID and secret are required")
+			return fmt.Errorf("client ID and secret are required")
 		}
 	}
 
