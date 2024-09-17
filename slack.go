@@ -103,7 +103,7 @@ func (sc *SlackClient) GetAuthorizeURL(state string) string {
 			"groups:history",
 			"im:read",
 			"im:history",
-			"mpim:ready",
+			"mpim:read",
 			"mpim:history",
 		},
 		",",
