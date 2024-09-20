@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/chuhlomin/slack-export/pkg/structs"
 	"github.com/jessevdk/go-flags"
@@ -199,7 +200,6 @@ func exportChannel(c *SlackClient, channelID string) error {
 	}
 
 	if channelInfo.IsArchived && !cfg.IncludeArchived {
-		log.Printf("Channel %q is archived, skipping", channelInfo.Name)
 		return nil
 	}
 
@@ -207,7 +207,6 @@ func exportChannel(c *SlackClient, channelID string) error {
 
 	// check if the file already exists
 	if _, err := os.Stat(outputFilename); err == nil {
-		log.Printf("File %q already exists", outputFilename)
 		// read the file to pull users
 		data, err := os.ReadFile(outputFilename)
 		if err != nil {
@@ -269,13 +268,36 @@ func exportChannels(c *SlackClient, types []string) error {
 		return fmt.Errorf("could not get public channels: %w", err)
 	}
 
-	for _, channel := range channels {
-		log.Printf("Exporting channel %q (%s)", channel.Name, channel.ID)
+	prog := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
+	fmt.Print(prog.ViewAs(0))
+	previousName := ""
+
+	for i, channel := range channels {
+		// log.Printf("Exporting channel %q (%s)", channel.Name, channel.ID)
+		fmt.Printf(
+			"\r%s (%d/%d) %s%s%s",
+			prog.ViewAs(float64(i+1)/float64(len(channels))),
+			i+1,
+			len(channels),
+			channel.Name,
+			strings.Repeat(" ", max(0, len(previousName)-len(channel.Name))),
+			strings.Repeat("\b", max(0, len(previousName)-len(channel.Name))),
+		)
 		err := exportChannel(c, channel.ID)
 		if err != nil {
 			return fmt.Errorf("could not export channel %q: %w", channel.Name, err)
 		}
+		previousName = channel.Name
 	}
+
+	fmt.Printf(
+		"\r%s (%d/%d) %s%s",
+		prog.ViewAs(1),
+		len(channels),
+		len(channels),
+		strings.Repeat(" ", len(previousName)),
+		strings.Repeat("\b", len(previousName)),
+	)
 
 	return nil
 }
