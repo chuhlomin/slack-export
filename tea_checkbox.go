@@ -6,16 +6,49 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type modelChoices struct {
-	cursor   int
-	choices  []string
-	selected map[int]struct{}
+type choice struct {
+	value     string
+	label     string
+	isChannel bool
 }
 
-func initialModelChoices() modelChoices {
+type modelChoices struct {
+	cursor          int
+	choices         []choice
+	selected        map[int]struct{}
+	downloadAvatars bool
+	downloadFiles   bool
+}
+
+const (
+	downloadAvatarsIndex = 4
+	downloadFilesIndex   = 5
+	includeArchivedIndex = 6
+)
+
+func initialModelChoices(downloadAvatars, downloadFiles, includeArchived bool) modelChoices {
+	selected := make(map[int]struct{})
+	if downloadAvatars {
+		selected[downloadAvatarsIndex] = struct{}{}
+	}
+	if downloadFiles {
+		selected[downloadFilesIndex] = struct{}{}
+	}
+	if includeArchived {
+		selected[includeArchivedIndex] = struct{}{}
+	}
+
 	return modelChoices{
-		choices:  []string{"public_channel", "private_channel", "im", "mpim"},
-		selected: make(map[int]struct{}),
+		choices: []choice{
+			{"public_channel", "Public channels", true},
+			{"private_channel", "Private channels", true},
+			{"im", "DM", true},
+			{"mpim", "Group DM", true},
+			{"downloadAvatars", "Download avatars", false},
+			{"downloadFiles", "Download files", false},
+			{"includeArchived", "Include archived channels", false},
+		},
+		selected: selected,
 	}
 }
 
@@ -61,7 +94,7 @@ func (mc modelChoices) View() string {
 	for i, choice := range mc.choices {
 		cursor := " "
 		if mc.cursor == i {
-			cursor = ">"
+			cursor = "▶︎"
 		}
 
 		checked := " "
@@ -69,7 +102,11 @@ func (mc modelChoices) View() string {
 			checked = "x"
 		}
 
-		s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+		if choice.value == "downloadAvatars" {
+			s += "\n"
+		}
+
+		s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice.label)
 	}
 
 	s += "\nPress q to quit. Press enter to continue.\n"

@@ -39,7 +39,7 @@ func initialModelInputs(clientID, clientSecret string) modelInputs {
 
 		switch i {
 		case 0:
-			t.Prompt = "Slack App OAuth Client ID > "
+			t.Prompt = "Slack App OAuth Client ID ▶︎ "
 			t.Placeholder = "1234567890.1234567890123"
 			if clientID != "" {
 				t.SetValue(clientID)
@@ -49,14 +49,14 @@ func initialModelInputs(clientID, clientSecret string) modelInputs {
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
 		case 1:
-			t.Prompt = "Slack App OAuth Client Secret > "
+			t.Prompt = "Slack App OAuth Client Secret ▶︎ "
 			t.Placeholder = "12345678901234567890123456789012"
 			if clientSecret != "" {
 				t.SetValue(clientSecret)
 			}
 			t.CharLimit = 32
 		case 2:
-			t.Prompt = "Slack User Token (optional) > "
+			t.Prompt = "Slack User Token (optional) ▶︎ "
 			t.Placeholder = "xoxp-"
 			t.CharLimit = 76
 		}

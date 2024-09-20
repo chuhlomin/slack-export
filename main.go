@@ -28,7 +28,7 @@ type config struct {
 	Port            string `env:"PORT" long:"port" description:"Server port" default:"8079"`
 	DownloadFiles   bool   `env:"DOWNLOAD_FILES" long:"download-files" description:"Download files"`
 	DownloadAvatars bool   `env:"DOWNLOAD_AVATARS" long:"download-avatars" description:"Download avatars"`
-	SkipArchived    bool   `env:"SKIP_ARCHIVED" long:"skip-archived" description:"Skip archived channels"`
+	IncludeArchived bool   `env:"SKIP_ARCHIVED" long:"skip-archived" description:"Skip archived channels"`
 }
 
 var (
@@ -83,15 +83,31 @@ func run() error {
 	}
 
 	if cfg.Channels == "" {
-		model := initialModelChoices()
+		model := initialModelChoices(
+			cfg.DownloadAvatars,
+			cfg.DownloadFiles,
+			cfg.IncludeArchived,
+		)
 		p := tea.NewProgram(model)
 		if _, err := p.Run(); err != nil {
 			return err
 		}
 
 		for i := range model.selected {
-			cfg.Channels += model.choices[i] + ","
+			if model.choices[i].isChannel {
+				cfg.Channels += model.choices[i].value + ","
+			}
+			if i == downloadAvatarsIndex {
+				cfg.DownloadAvatars = true
+			}
+			if i == downloadFilesIndex {
+				cfg.DownloadFiles = true
+			}
+			if i == includeArchivedIndex {
+				cfg.IncludeArchived = true
+			}
 		}
+
 	} else {
 		// support simple aliases for channel types
 		switch cfg.Channels {
@@ -182,7 +198,7 @@ func exportChannel(c *SlackClient, channelID string) error {
 		return fmt.Errorf("could not get channel %q info: %w", channelID, err)
 	}
 
-	if channelInfo.IsArchived && cfg.SkipArchived {
+	if channelInfo.IsArchived && !cfg.IncludeArchived {
 		log.Printf("Channel %q is archived, skipping", channelInfo.Name)
 		return nil
 	}
