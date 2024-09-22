@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -108,7 +109,7 @@ func (sc *SlackClient) GetAuthorizeURL(state string) string {
 		},
 		",",
 	))
-	vals.Add("redirect_uri", "https://exporter.local")
+	vals.Add("redirect_uri", "https://oauth-redirect.pages.dev")
 	vals.Add("client_id", sc.clientID)
 
 	if state != "" {
@@ -164,16 +165,19 @@ func (sc *SlackClient) GetToken(code string) error {
 
 	defer resp.Body.Close()
 
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("could not read response: %w", err)
+	}
+
 	var token TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
+	if err := json.Unmarshal(b, &token); err != nil {
 		return fmt.Errorf("could not decode response: %w", err)
 	}
 
 	if !token.Ok {
-		return fmt.Errorf("%w: %#v", errInvalidTokenResponse, token)
+		return fmt.Errorf("%w: %v", errInvalidTokenResponse, string(b))
 	}
-
-	log.Printf("Token received: %s", token.AuthedUser.AccessToken)
 
 	sc.token = token.AuthedUser.AccessToken
 	sc.api = slack.New(sc.token)

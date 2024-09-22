@@ -14,7 +14,7 @@ Go to https://api.slack.com/apps and create a new Slack app with app manifest:
     "name": "Exporter"
   },
   "oauth_config": {
-    "redirect_urls": ["https://exporter.local"],
+    "redirect_urls": ["https://oauth-redirect.pages.dev"],
     "scopes": {
       "user": [
         "users:read",
@@ -41,35 +41,14 @@ Go to https://api.slack.com/apps and create a new Slack app with app manifest:
 
 Install the app in the Slack Workspace.
 
-## 2. Prepare the environment for OAuth flow
-
-To perform operations on behalf of the user, the app needs to be authorized by the user (token starts with `xoxp-`). This is done by the OAuth flow. Once token is obtained, it can be passed to the app as `API_TOKEN` environment variable to avoid OAuth flow.
-
-App will run a local HTTP server to receive the OAuth callback. To make it work, you need to add `exporter.local` to your `/etc/hosts` file:
-
-```
-127.0.0.1       exporter.local
-::1     exporter.local
-```
-
-Because Slack requires HTTPS for OAuth, you need to run the app with a self-signed certificate. One way to do this to run Caddy from the root of this repo:
-
-```sh
-caddy run
-```
-
-It will forward all requests to the app running on `localhost:8079` (controlled by `ADDRESS` and `PORT` environment variable) and serve the app on `https://exporter.local`.
-
-## 3. Run the app
-
-Copy the file `.env-template` to `.env` and add values to the placeholders for `APP_CLIENT_ID` and `APP_CLIENT_SECRET` with the values from "Basic info" in your Slack app settings.
+## 2. Run the app
 
 Find channel, group or DM ID by copying its link and extracting the last part of the URL. For example, the ID for `https://myworkspace.slack.com/archives/D0000000000` is `D0000000000`.
 
-Build and run the main executable from the root of this repo with:
+Download (or build and run) the main binary.
 
 ```shell
-go run . --channel="D0000000000"
+./slack-exporter
 ```
 
 App will create a JSON file with the messages named like `D0000000000.json` with structure like:
@@ -108,7 +87,7 @@ App will create a JSON file with the messages named like `D0000000000.json` with
 }
 ```
 
-## 4. (Optionally) Convert JSON to HTML
+## 3. (Optionally) Convert JSON to HTML
 
 To convert JSON to HTML, you can use the `json2html` tool from the `cmd` directory.
 

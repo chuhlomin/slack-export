@@ -97,14 +97,19 @@ func (mc modelChoices) View() string {
 
 		checked := " "
 		if _, ok := mc.selected[i]; ok {
-			checked = "x"
+			checked = "×"
 		}
 
 		if choice.value == "downloadAvatars" {
 			s += "\n"
 		}
 
-		s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice.label)
+		style := noStyle
+		if mc.cursor == i {
+			style = focusedStyle
+		}
+
+		s += style.Render(fmt.Sprintf("%s [%s] %s", cursor, checked, choice.label)) + "\n"
 	}
 
 	s += "\nPress q to quit. Press enter to continue.\n"

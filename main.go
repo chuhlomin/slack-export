@@ -163,32 +163,20 @@ func run() error {
 
 func getToken(c *SlackClient) error {
 	state := RandStringBytesMaskImprSrcSB(16)
-	code := make(chan string)
-
-	s := NewServer(cfg.Address, cfg.Port, state, code)
-
-	go func() {
-		log.Printf("Starting server on %s:%s, waiting for code...", cfg.Address, cfg.Port)
-		err := s.Start()
-		if err != nil && err != http.ErrServerClosed {
-			log.Printf("could not start server: %v", err)
-		}
-	}()
-
-	defer func() {
-		err := s.Stop()
-		if err != nil {
-			log.Printf("could not stop server: %v", err)
-		}
-	}()
-
 	authorizeURL := c.GetAuthorizeURL(state)
 
 	if err := openBrowser(authorizeURL); err != nil {
 		log.Printf("App authorization URL: %s", authorizeURL)
 	}
 
-	if err := c.GetToken(<-code); err != nil {
+	model := initialModelCode()
+	updatedModel, err := tea.NewProgram(model).Run()
+	if err != nil {
+		return err
+	}
+
+	code := strings.TrimSpace(updatedModel.(modelCode).code.Value())
+	if err := c.GetToken(code); err != nil {
 		return err
 	}
 
