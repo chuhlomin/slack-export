@@ -13,11 +13,9 @@ type choice struct {
 }
 
 type modelChoices struct {
-	cursor          int
-	choices         []choice
-	selected        map[int]struct{}
-	downloadAvatars bool
-	downloadFiles   bool
+	cursor   int
+	choices  []choice
+	selected map[int]struct{}
 }
 
 const (

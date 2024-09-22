@@ -33,8 +33,10 @@ type config struct {
 }
 
 var (
-	cfg          config
-	errBadStatus = fmt.Errorf("bad status code")
+	cfg                         config
+	errBadStatus                = fmt.Errorf("bad status code")
+	errExpectedThreeInputs      = fmt.Errorf("expected three inputs")
+	errMissingClientIDAndSecret = fmt.Errorf("client ID and secret are required")
 )
 
 func main() {
@@ -55,7 +57,7 @@ func run() error {
 		}
 
 		if len(model.inputs) != 3 {
-			return fmt.Errorf("expected 3 inputs")
+			return errExpectedThreeInputs
 		}
 
 		cfg.AppClientID = model.inputs[0].Value()
@@ -63,7 +65,7 @@ func run() error {
 		cfg.APIToken = model.inputs[2].Value()
 
 		if cfg.AppClientID == "" || cfg.AppClientSecret == "" {
-			return fmt.Errorf("client ID and secret are required")
+			return errMissingClientIDAndSecret
 		}
 	}
 
@@ -273,7 +275,6 @@ func exportChannels(c *SlackClient, types []string) error {
 	previousName := ""
 
 	for i, channel := range channels {
-		// log.Printf("Exporting channel %q (%s)", channel.Name, channel.ID)
 		fmt.Printf(
 			"\r%s (%d/%d) %s%s%s",
 			prog.ViewAs(float64(i+1)/float64(len(channels))),

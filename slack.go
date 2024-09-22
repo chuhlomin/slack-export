@@ -189,7 +189,6 @@ func (sc *SlackClient) GetChannels(types []string) ([]slack.Channel, error) {
 			return nil, fmt.Errorf("rate limit error: %w", err)
 		}
 
-		// log.Printf("Getting channels with cursor %q", cursor)
 		resp, next, err := sc.api.GetConversations(&slack.GetConversationsParameters{
 			Types:  types,
 			Limit:  999,
@@ -291,8 +290,6 @@ func (sc *SlackClient) GetMessages(channel string) ([]structs.Message, error) {
 			return nil, fmt.Errorf("rate limit error: %w", err)
 		}
 
-		// log.Printf("Getting messages with cursor %q", cursor)
-
 		resp, err := sc.api.GetConversationHistory(&slack.GetConversationHistoryParameters{
 			ChannelID: channel,
 			Limit:     999,
@@ -345,8 +342,6 @@ func (sc *SlackClient) getReplies(channel, messageID string) ([]slack.Message, e
 		if err != nil {
 			return nil, fmt.Errorf("rate limit error: %w", err)
 		}
-
-		// log.Printf("Getting replies with cursor %q for message %q", cursor, messageID)
 
 		msgs, _, nextCursor, err := sc.api.GetConversationReplies(&slack.GetConversationRepliesParameters{
 			ChannelID: channel,
