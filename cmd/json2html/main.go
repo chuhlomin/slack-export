@@ -53,6 +53,16 @@ var (
 			return filepath.Join("avatars", user.ID+".png")
 			// return user.Profile.Image512
 		},
+		"title": func(channel slack.Channel, users map[string]*slack.User) string {
+			switch {
+			case channel.IsIM:
+				return "Direct message with " + username(lookupUser(channel.User, users))
+			case channel.IsGroup, channel.IsMpIM:
+				return channel.Purpose.Value
+			default:
+				return channel.Name
+			}
+		},
 		"sameMessage": func(a, b structs.Message) bool {
 			return a.SameContext(b)
 		},
@@ -203,7 +213,7 @@ func processDirectory(input, output string, t *template.Template) error {
 		return fmt.Errorf("could not read directory: %w", err)
 	}
 
-	var channels []*slack.Channel
+	var allFiles []*structs.Data
 
 	for _, file := range files {
 		if file.IsDir() {
@@ -217,7 +227,7 @@ func processDirectory(input, output string, t *template.Template) error {
 		outputFilename := strings.TrimSuffix(file.Name(), ".json") + ".html"
 
 		log.Printf("Processing file %q", file.Name())
-		channel, err := processFile(
+		data, err := processFile(
 			filepath.Join(input, file.Name()),
 			filepath.Join(output, outputFilename),
 			t,
@@ -231,14 +241,14 @@ func processDirectory(input, output string, t *template.Template) error {
 			return fmt.Errorf("could not process file %q: %w", file.Name(), err)
 		}
 
-		channels = append(channels, channel)
+		allFiles = append(allFiles, data)
 	}
 
 	log.Printf("Generating index")
-	return generateIndex(output, channels, it)
+	return generateIndex(output, allFiles, it)
 }
 
-func processFile(input, output string, t *template.Template) (*slack.Channel, error) {
+func processFile(input, output string, t *template.Template) (*structs.Data, error) {
 	var data structs.Data
 	content, err := os.ReadFile(input)
 	if err != nil {
@@ -264,24 +274,24 @@ func processFile(input, output string, t *template.Template) (*slack.Channel, er
 		return nil, fmt.Errorf("could not execute template: %w", err)
 	}
 
-	return &data.Channel, nil
+	return &data, nil
 }
 
-func generateIndex(output string, channels []*slack.Channel, t *template.Template) error {
+func generateIndex(output string, data []*structs.Data, t *template.Template) error {
 	o, err := os.Create(filepath.Join(output, "index.html"))
 	if err != nil {
 		return fmt.Errorf("could not create index file: %w", err)
 	}
 
 	// sort alphabetically
-	sort.Slice(channels, func(i, j int) bool {
-		return channels[i].Name < channels[j].Name
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].Channel.Name < data[j].Channel.Name
 	})
 
 	if err := t.Execute(o, struct {
-		Channels []*slack.Channel
+		Data []*structs.Data
 	}{
-		Channels: channels,
+		Data: data,
 	}); err != nil {
 		return fmt.Errorf("could not execute index template: %w", err)
 	}

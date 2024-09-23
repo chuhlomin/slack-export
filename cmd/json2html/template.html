@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{{ .Channel.Name }}</title>
+<title>{{ title .Channel .Users }}</title>
 <style>
 *,
 *::before,
@@ -189,7 +189,10 @@ video, img {
 </style>
 </head>
 <body>
-<h1>{{ .Channel.Name }}</h1>
+<h1>{{ title .Channel .Users }}</h1>
+{{- if .Channel.Topic.Value }}
+<p class="topic">{{ .Channel.Topic.Value }}</p>
+{{- end }}
 
 {{ if .Messages }}
 <ul class="messages">
@@ -199,7 +202,7 @@ video, img {
     {{ $user := lookupUser .User $.Users }}
     <li class="message-container">
         {{ if eq .SubType "channel_join" }}
-        <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+        <img class="avatar" src="{{ avatar $user }}">
         <span class="joined" id="p{{ replace .Timestamp "." "" }}">
           <strong class="username">{{ username $user }}</strong> has joined the channel
           <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>

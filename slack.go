@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -165,7 +164,7 @@ func (sc *SlackClient) GetToken(code string) error {
 
 	defer resp.Body.Close()
 
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("could not read response: %w", err)
 	}
@@ -273,7 +272,18 @@ func (sc *SlackClient) GetChannelInfo(channel string) (*slack.Channel, error) {
 		return nil, fmt.Errorf("rate limit error: %w", err)
 	}
 
-	return sc.api.GetConversationInfo(&slack.GetConversationInfoInput{ChannelID: channel})
+	c, err := sc.api.GetConversationInfo(&slack.GetConversationInfoInput{ChannelID: channel})
+	if err != nil {
+		return nil, err
+	}
+
+	// reset seen users
+	sc.seenUsers = make(map[string]interface{})
+	if c.User != "" {
+		sc.seenUsers[c.User] = struct{}{}
+	}
+
+	return c, nil
 }
 
 // GetMessages returns a list of all the messages in the channel.
@@ -281,9 +291,6 @@ func (sc *SlackClient) GetMessages(channel string) ([]structs.Message, error) {
 	if channel == "" {
 		return nil, errChannelRequired
 	}
-
-	// reset seen users
-	sc.seenUsers = make(map[string]interface{})
 
 	var allMessages []slack.Message
 
