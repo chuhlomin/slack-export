@@ -33,7 +33,10 @@ type config struct {
 	SkipArchived bool   `long:"skip-archived" description:"Skip archived channels"`
 }
 
-var errChannelIsArchived = fmt.Errorf("channel is archived")
+var (
+	errChannelIsArchived = fmt.Errorf("channel is archived")
+	errNoMessages        = fmt.Errorf("no messages")
+)
 
 //go:embed template.html
 var tmpl string
@@ -53,16 +56,7 @@ var (
 			return filepath.Join("avatars", user.ID+".png")
 			// return user.Profile.Image512
 		},
-		"title": func(channel slack.Channel, users map[string]*slack.User) string {
-			switch {
-			case channel.IsIM:
-				return "Direct message with " + username(lookupUser(channel.User, users))
-			case channel.IsGroup, channel.IsMpIM:
-				return channel.Purpose.Value
-			default:
-				return channel.Name
-			}
-		},
+		"title": title,
 		"sameMessage": func(a, b structs.Message) bool {
 			return a.SameContext(b)
 		},
@@ -103,6 +97,8 @@ var (
 					sb.WriteString(
 						processRichTextElements(block.(*slack.RichTextBlock).Elements, users),
 					)
+				case slack.MBTSection:
+					sb.WriteString(block.(*slack.SectionBlock).Text.Text)
 				}
 			}
 
@@ -238,6 +234,11 @@ func processDirectory(input, output string, t *template.Template) error {
 				continue
 			}
 
+			if errors.Is(err, errNoMessages) {
+				log.Printf("No messages found, skipping")
+				continue
+			}
+
 			return fmt.Errorf("could not process file %q: %w", file.Name(), err)
 		}
 
@@ -263,6 +264,10 @@ func processFile(input, output string, t *template.Template) (*structs.Data, err
 		return nil, errChannelIsArchived
 	}
 
+	if len(data.Messages) == 0 {
+		return nil, errNoMessages
+	}
+
 	o, err := os.Create(output)
 	if err != nil {
 		return nil, fmt.Errorf("could not create file: %w", err)
@@ -285,7 +290,7 @@ func generateIndex(output string, data []*structs.Data, t *template.Template) er
 
 	// sort alphabetically
 	sort.Slice(data, func(i, j int) bool {
-		return data[i].Channel.Name < data[j].Channel.Name
+		return title(data[i].Channel, data[i].Users) < title(data[j].Channel, data[j].Users)
 	})
 
 	if err := t.Execute(o, struct {
@@ -530,4 +535,23 @@ func maxLength(w, h, maxW, maxH int) (width, height int) {
 	}
 
 	return w, h
+}
+
+func title(channel slack.Channel, users map[string]*slack.User) string {
+	switch {
+	case channel.IsIM:
+		return "👤 " + username(lookupUser(channel.User, users))
+	case channel.IsGroup, channel.IsMpIM:
+		return strings.Replace(
+			channel.Purpose.Value,
+			"Group messaging with: ",
+			"👥 ",
+			1,
+		)
+	default:
+		if channel.IsPrivate {
+			return "🔒 " + channel.Name
+		}
+		return "# " + channel.Name
+	}
 }

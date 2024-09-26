@@ -21,6 +21,10 @@ body {
   line-height: 1.5;
 }
 
+h1 {
+    margin-bottom: 0.33em;
+}
+
 a {
   text-underline-offset: 0.3em;
 }
@@ -48,7 +52,8 @@ code {
   border: 1px solid #dadada;
 }
 
-blockquote {
+blockquote,
+.section {
   margin: 0;
   border-left: 3px solid #dddddd;
   padding-left: 1em;
@@ -99,6 +104,7 @@ video, img {
   border-radius: 5px;
   margin-right: 0.33em;
   border: thin solid rgba(0,0,0,0.3);
+  overflow: hidden;
 }
 
 .timestamp {
@@ -215,6 +221,22 @@ video, img {
           <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
           {{ $checkPrevMessage = false }}
         </span>
+        {{ else if eq .SubType "bot_message" }}
+        {{- $botName := "Slack bot" }}
+        {{- $botIcon := "" }}
+        {{- if ne .User "USLACKBOT" }}
+            {{ $botName = .BotProfile.Name }}
+            {{ $botIcon = .BotProfile.Icons.Image72 }}
+        {{ end }}
+        <img class="avatar" src="{{ $botIcon }}" alt="{{ $botName }}">
+        <span id="p{{ replace .Timestamp "." "" }}">
+          <strong class="username">{{ $botName }}</strong>
+          <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
+        </span>
+        <div class="message">
+            {{ .Text }}
+            <div class="section">{{ format .Blocks $.Users }}</div>
+        </div>
         {{ else if eq .SubType "channel_purpose" }}
         <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
         <span id="p{{ replace .Timestamp "." "" }}">
@@ -225,7 +247,7 @@ video, img {
         {{ else }}
         {{ $newContext := or (not $checkPrevMessage) (not (sameMessage $prevMessage .)) }}
         {{ if $newContext }}
-            <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">
+            <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}" alt="{{ username $user }}">
             <span id="p{{ replace .Timestamp "." "" }}" class="message-header">
               <strong class="username">{{ username $user }}</strong>
               <a class="timestamp" href="#p{{ replace .Timestamp "." "" }}">{{ formatTime .Timestamp }}</a>
