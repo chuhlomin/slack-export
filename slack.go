@@ -402,6 +402,14 @@ func (sc *SlackClient) getReplies(channel, messageID string) ([]slack.Message, e
 func (sc *SlackClient) convertToMsg(message slack.Message) structs.Message {
 	sc.seenUsers[message.User] = nil
 
+	for _, block := range message.Blocks.BlockSet {
+		switch block.BlockType() {
+		case slack.MBTRichText:
+			log.Printf("RichTextBlock: %v", block)
+			sc.processRichTextElements(block.(*slack.RichTextBlock).Elements)
+		}
+	}
+
 	if message.Files != nil {
 		for _, file := range message.Files {
 			if file.URLPrivateDownload == "" {
@@ -413,6 +421,28 @@ func (sc *SlackClient) convertToMsg(message slack.Message) structs.Message {
 
 	return structs.Message{
 		Message: message,
+	}
+}
+
+func (sc *SlackClient) processRichTextElements(elements []slack.RichTextElement) {
+	for _, element := range elements {
+		switch element.RichTextElementType() {
+		case slack.RTESection:
+			sc.processRichTextSectionElements(element.(*slack.RichTextSection).Elements)
+		case slack.RTEQuote:
+			sc.processRichTextSectionElements(element.(*slack.RichTextQuote).Elements)
+		case slack.RTEList:
+			sc.processRichTextElements(element.(*slack.RichTextList).Elements)
+		}
+	}
+}
+
+func (sc *SlackClient) processRichTextSectionElements(elements []slack.RichTextSectionElement) {
+	for _, rtEelement := range elements {
+		switch rtEelement.RichTextSectionElementType() {
+		case slack.RTSEUser:
+			sc.seenUsers[rtEelement.(*slack.RichTextSectionUserElement).UserID] = nil
+		}
 	}
 }
 
