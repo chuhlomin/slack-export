@@ -211,7 +211,6 @@ func exportChannel(c *SlackClient, channelID string) error {
 		for id, user := range d.Users {
 			c.UsersCache[id] = user
 		}
-		return nil
 	}
 
 	msgs, err := c.GetMessages(channelID)
