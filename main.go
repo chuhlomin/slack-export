@@ -15,7 +15,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/chuhlomin/slack-export/pkg/structs"
+	"github.com/chuhlomin/slack-exporter/pkg/structs"
 	"github.com/jessevdk/go-flags"
 )
 

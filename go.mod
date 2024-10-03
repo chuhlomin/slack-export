@@ -1,4 +1,4 @@
-module github.com/chuhlomin/slack-export
+module github.com/chuhlomin/slack-exporter
 
 go 1.22.4
 

@@ -23,7 +23,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/slack-go/slack"
 
-	"github.com/chuhlomin/slack-export/pkg/structs"
+	"github.com/chuhlomin/slack-exporter/pkg/structs"
 )
 
 type config struct {

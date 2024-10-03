@@ -19,7 +19,7 @@ import (
 	"github.com/slack-go/slack"
 	"golang.org/x/time/rate"
 
-	"github.com/chuhlomin/slack-export/pkg/structs"
+	"github.com/chuhlomin/slack-exporter/pkg/structs"
 )
 
 var (
