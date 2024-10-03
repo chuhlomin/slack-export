@@ -153,6 +153,7 @@ func (mi modelInputs) View() string {
 		button = &focusedButton
 	}
 	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
+	fmt.Fprintf(&b, "Use arrow keys ↑ and ↓ to move between inputs. Press enter to press the submit button.\n")
 
 	return b.String()
 }
