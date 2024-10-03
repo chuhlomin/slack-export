@@ -27,9 +27,9 @@ import (
 )
 
 type config struct {
-	Input        string `long:"input" short:"i" description:"Input JSON file or directory" required:"true"`
-	Output       string `long:"output" short:"o" description:"Output HTML file or directory" required:"true"`
-	EmojiDir     string `long:"emoji" description:"Directory with emoji"`
+	Input        string `long:"input" short:"i" description:"Input JSON file or directory"`
+	Output       string `long:"output" short:"o" description:"Output HTML file or directory"`
+	EmojiDir     string `long:"emoji" description:"Directory with emoji" default:"emoji"`
 	SkipArchived bool   `long:"skip-archived" description:"Skip archived channels"`
 }
 
@@ -164,11 +164,19 @@ func run() error {
 		return fmt.Errorf("could not parse flags: %w", err)
 	}
 
+	if cfg.Output == "" {
+		cfg.Output = cfg.Input
+	}
+
 	if cfg.EmojiDir != "" {
 		var err error
 		slackEmoji, err = loadSlackEmoji(filepath.Join(cfg.EmojiDir, "emoji.json"))
 		if err != nil {
-			return fmt.Errorf("could not load emoji: %w", err)
+			if errors.Is(err, os.ErrNotExist) {
+				log.Printf("Emoji file not found, skipping")
+			} else {
+				return fmt.Errorf("could not load emoji: %w", err)
+			}
 		}
 	}
 
