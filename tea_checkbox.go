@@ -38,7 +38,7 @@ func initialModelChoices(downloadAvatars, downloadFiles, includeArchived bool) m
 
 	return modelChoices{
 		choices: []choice{
-			{"public_channel", "Public channels", true},
+			// {"public_channel", "Public channels", true},
 			{"private_channel", "Private channels", true},
 			{"im", "DM", true},
 			{"mpim", "Group DM", true},

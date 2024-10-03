@@ -114,10 +114,10 @@ func run() error {
 	} else {
 		// support simple aliases for channel types
 		switch cfg.Channels {
-		case "all":
-			cfg.Channels = "public_channel,private_channel,mpim,im"
-		case "public":
-			cfg.Channels = "public_channel"
+		// case "all":
+		// 	cfg.Channels = "public_channel,private_channel,mpim,im"
+		// case "public":
+		// 	cfg.Channels = "public_channel"
 		case "private":
 			cfg.Channels = "private_channel,mpim,im"
 		case "dm":
