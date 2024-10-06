@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -13,9 +14,9 @@ type choice struct {
 }
 
 type modelChoices struct {
-	cursor   int
-	choices  []choice
-	selected map[int]struct{}
+	focusIndex int
+	choices    []choice
+	selected   map[int]struct{}
 }
 
 const (
@@ -58,28 +59,40 @@ func (mc modelChoices) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "esc":
 			for i := range mc.selected {
 				delete(mc.selected, i)
 			}
 			return mc, tea.Quit
-		case "up", "k":
-			if mc.cursor > 0 {
-				mc.cursor--
+		case "tab", "shift+tab", "enter", "up", "down":
+			s := msg.String()
+
+			// Did the user press enter while the submit button was focused?
+			// If so, exit.
+			if s == "enter" && mc.focusIndex == len(mc.choices) {
+				return mc, tea.Quit
 			}
-		case "down", "j":
-			if mc.cursor < len(mc.choices)-1 {
-				mc.cursor++
-			}
-		case " ":
-			_, ok := mc.selected[mc.cursor]
-			if ok {
-				delete(mc.selected, mc.cursor)
+
+			// Cycle indexes
+			if s == "up" || s == "shift+tab" {
+				mc.focusIndex--
 			} else {
-				mc.selected[mc.cursor] = struct{}{}
+				mc.focusIndex++
 			}
-		case "enter":
-			return mc, tea.Quit
+
+			if mc.focusIndex > len(mc.choices) {
+				mc.focusIndex = 0
+			} else if mc.focusIndex < 0 {
+				mc.focusIndex = len(mc.choices)
+			}
+
+		case " ":
+			_, ok := mc.selected[mc.focusIndex]
+			if ok {
+				delete(mc.selected, mc.focusIndex)
+			} else {
+				mc.selected[mc.focusIndex] = struct{}{}
+			}
 		}
 	}
 
@@ -87,12 +100,13 @@ func (mc modelChoices) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (mc modelChoices) View() string {
-	s := "What channels do you want to export?\n\n"
+	var b strings.Builder
+	b.WriteString("What channels do you want to export?\n\n")
 
 	for i, choice := range mc.choices {
-		cursor := " "
-		if mc.cursor == i {
-			cursor = "▶︎"
+		focusIndex := " "
+		if mc.focusIndex == i {
+			focusIndex = "▶︎"
 		}
 
 		checked := " "
@@ -101,18 +115,23 @@ func (mc modelChoices) View() string {
 		}
 
 		if choice.value == "downloadAvatars" {
-			s += "\n"
+			b.WriteRune('\n')
 		}
 
 		style := noStyle
-		if mc.cursor == i {
+		if mc.focusIndex == i {
 			style = focusedStyle
 		}
 
-		s += style.Render(fmt.Sprintf("%s [%s] %s", cursor, checked, choice.label)) + "\n"
+		b.WriteString(style.Render(fmt.Sprintf("%s [%s] %s", focusIndex, checked, choice.label)) + "\n")
 	}
 
-	s += "\nPress q to quit. Press enter to continue.\n"
+	button := &blurredButton
+	if mc.focusIndex == len(mc.choices) {
+		button = &focusedButton
+	}
+	fmt.Fprintf(&b, "\n%s\n\n", *button)
+	fmt.Fprintf(&b, "Use arrow keys ↑ and ↓ to move between inputs. Press enter to press the submit button.\n")
 
-	return s
+	return b.String()
 }
