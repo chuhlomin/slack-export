@@ -405,7 +405,6 @@ func (sc *SlackClient) convertToMsg(message slack.Message) structs.Message {
 	for _, block := range message.Blocks.BlockSet {
 		switch block.BlockType() {
 		case slack.MBTRichText:
-			log.Printf("RichTextBlock: %v", block)
 			sc.processRichTextElements(block.(*slack.RichTextBlock).Elements)
 		}
 	}
