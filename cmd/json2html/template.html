@@ -224,7 +224,7 @@ video, img {
         {{ else if eq .SubType "bot_message" }}
         {{- $botName := "Slack bot" }}
         {{- $botIcon := "" }}
-        {{- if ne .User "USLACKBOT" }}
+        {{- if and (ne .User "USLACKBOT") .BotProfile }}
             {{ $botName = .BotProfile.Name }}
             {{ $botIcon = .BotProfile.Icons.Image72 }}
         {{ end }}
