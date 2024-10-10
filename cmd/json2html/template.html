@@ -235,7 +235,9 @@ video, img {
         </span>
         <div class="message">
             {{ .Text }}
-            <div class="section">{{ format .Blocks $.Users }}</div>
+            {{ with .Blocks }}
+            <div class="section">{{ format . $.Users }}</div>
+            {{ end }}
         </div>
         {{ else if eq .SubType "channel_purpose" }}
         <img class="avatar" src="{{ avatar $user }}" alt="{{ username $user }}">

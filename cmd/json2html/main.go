@@ -317,6 +317,10 @@ func lookupUser(id string, users map[string]*slack.User) *slack.User {
 		return nil
 	}
 
+	if users == nil {
+		return nil
+	}
+
 	if user, ok := users[id]; ok {
 		return user
 	}
