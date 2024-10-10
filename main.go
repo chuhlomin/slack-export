@@ -29,7 +29,7 @@ type config struct {
 	Port            string `env:"PORT" long:"port" description:"Server port" default:"8079"`
 	DownloadFiles   bool   `env:"DOWNLOAD_FILES" long:"download-files" description:"Download files"`
 	DownloadAvatars bool   `env:"DOWNLOAD_AVATARS" long:"download-avatars" description:"Download avatars"`
-	IncludeArchived bool   `env:"SKIP_ARCHIVED" long:"skip-archived" description:"Skip archived channels"`
+	IncludeArchived bool   `env:"SKIP_ARCHIVED" long:"include-archived" description:"Include archived channels"`
 }
 
 var (
